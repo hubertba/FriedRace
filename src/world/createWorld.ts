@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import rawMap from "../content/map/region.json";
+import { createStarterRally } from "../content/events";
 import { validateImportedMap, type ImportedMap } from "./mapData";
 import { worldBoundsFromMap, type WorldBounds } from "./worldBounds";
 
@@ -73,14 +74,18 @@ export const createWorld = (scene: THREE.Scene, physics: RAPIER.World): WorldDef
   garage.name = "Garage";
   scene.add(garage);
 
-  const rally = new THREE.Mesh(
-    new THREE.TorusGeometry(8, 0.7, 8, 32),
-    new THREE.MeshStandardMaterial({ color: 0xff5722 }),
-  );
-  rally.rotation.x = Math.PI / 2;
-  rally.position.set(spawn.x + 35, 0.8, spawn.z - 30);
-  rally.name = "Rally start";
-  scene.add(rally);
+  const rally = createStarterRally({ x: spawn.x, z: spawn.z });
+  const gatePoints = [rally.start, ...rally.checkpoints, rally.finish];
+  gatePoints.forEach((point, index) => {
+    const gate = new THREE.Mesh(
+      new THREE.TorusGeometry(index === 0 || index === gatePoints.length - 1 ? 8 : 5, 0.7, 8, 32),
+      new THREE.MeshStandardMaterial({ color: index === 0 ? 0xff5722 : 0x29b6f6 }),
+    );
+    gate.rotation.x = Math.PI / 2;
+    gate.position.set(point.x, 1.2, point.z);
+    gate.name = index === 0 ? "Rally start" : `Rally checkpoint ${index}`;
+    scene.add(gate);
+  });
 
   return {
     map,

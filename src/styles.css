@@ -50,6 +50,14 @@ canvas[data-game-canvas] {
   cursor: pointer;
 }
 
+.rally-button {
+  position: fixed;
+  right: 1rem;
+  bottom: 3rem;
+  max-width: 15rem;
+  padding: 0.7rem 0.9rem;
+}
+
 .garage-button {
   position: fixed;
   top: 4rem;

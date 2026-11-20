@@ -1,8 +1,11 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
+import { createStarterRally } from "../content/events";
 import { VEHICLES, vehicleById } from "../content/vehicles";
 import { purchaseVehicle } from "../domain/economy";
+import { drawMysteryReward } from "../domain/mysteryBox";
 import { loadProfile, saveProfile } from "../domain/persistence";
+import { canEnterRally, startRally, updateRally, type RallyRun } from "../domain/rally";
 import { startWaypointChallenge, updateWaypointChallenge, type WaypointChallenge } from "../domain/waypointChallenge";
 import { KeyboardInput } from "../input/KeyboardInput";
 import { VehicleRuntime } from "../simulation/VehicleRuntime";
@@ -83,7 +86,18 @@ export class GameApp {
       garage.render(profile, VEHICLES);
     });
     const mysteryView = new MysteryBoxView();
-    this.root.append(garage.openButton, garage.element, mysteryView.element);
+    const rally = createStarterRally({ x: this.world.spawn.x, z: this.world.spawn.z });
+    let rallyRun: RallyRun | undefined;
+    const rallyButton = document.createElement("button");
+    rallyButton.className = "rally-button";
+    rallyButton.dataset.testid = "start-rally";
+    rallyButton.textContent = "Rallye starten";
+    rallyButton.disabled = true;
+    rallyButton.addEventListener("click", () => {
+      const vehicle = vehicleById(profile.activeVehicleId);
+      if (vehicle && canEnterRally(vehicle, rally)) rallyRun = startRally(rally, performance.now());
+    });
+    this.root.append(garage.openButton, garage.element, mysteryView.element, rallyButton);
     let waypoint: WaypointChallenge | undefined;
     let waypointMarker: THREE.Mesh | undefined;
     mapOverlay.onConfirm((target) => {
@@ -132,9 +146,32 @@ export class GameApp {
       if (this.keyboard!.isPressed("KeyR")) this.vehicle!.reset();
       physics.step();
       chaseCamera.update(this.vehicle!.object, dt);
-      const garageDistance = this.vehicle!.position().distanceTo(this.world!.spawn);
+      const currentPosition = this.vehicle!.position();
+      const garageDistance = currentPosition.distanceTo(this.world!.spawn);
       garage.setAvailable(garageDistance < 28 && Math.abs(this.vehicle!.speedKph()) < 3);
+      const rallyDistance = Math.hypot(currentPosition.x - rally.start.x, currentPosition.z - rally.start.z);
+      const currentVehicle = vehicleById(profile.activeVehicleId)!;
+      rallyButton.disabled = rallyDistance >= 15 || !canEnterRally(currentVehicle, rally) || Boolean(rallyRun);
+      rallyButton.textContent = canEnterRally(currentVehicle, rally) ? "Rallye starten" : "Rallye: Rally-/Geländewagen nötig";
       let timerText = garageDistance < 28 ? "Garage: G" : "Freie Fahrt";
+      if (rallyRun) {
+        const update = updateRally(rallyRun, { x: currentPosition.x, z: currentPosition.z }, time);
+        rallyRun = update.run;
+        timerText = update.completed
+          ? `Rallye geschafft: +€${update.moneyReward}`
+          : `Rallye ${Math.round((time - rallyRun.startedAt) / 1000)} s · Tor ${Math.min(rallyRun.nextCheckpoint + 1, rally.checkpoints.length + 1)}`;
+        if (update.moneyReward > 0) {
+          profile = { ...profile, money: profile.money + update.moneyReward, completedEvents: [...new Set([...profile.completedEvents, rally.id])] };
+          for (let box = 0; box < update.mysteryBoxes; box += 1) {
+            const reward = drawMysteryReward(profile, VEHICLES);
+            profile = reward.profile;
+            mysteryView.show(reward);
+          }
+          saveProfile(localStorage, profile);
+          garage.render(profile, VEHICLES);
+          rallyRun = undefined;
+        }
+      }
       if (waypoint) {
         const position = this.vehicle!.position();
         const update = updateWaypointChallenge(waypoint, { x: position.x, z: position.z }, time);
