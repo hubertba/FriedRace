@@ -55,6 +55,13 @@ export class VehicleRuntime {
     document.body.dataset.atSpawn = "true";
   }
 
+  teleport(point: { x: number; z: number }): void {
+    this.speed = 0;
+    this.body.setTranslation({ x: point.x, y: this.spawn.y, z: point.z }, true);
+    this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    this.syncObject();
+  }
+
   setVehicle(vehicle: VehicleDefinition): void {
     this.vehicle = vehicle;
     this.object.scale.set(vehicle.class === "offroad" ? 1.15 : 1, vehicle.class === "offroad" ? 1.25 : 1, 1);

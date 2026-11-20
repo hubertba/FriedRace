@@ -8,7 +8,13 @@ if (!root) {
 }
 
 const game = new GameApp(root);
-void game.start();
+void game.start().catch((error: unknown) => {
+  console.error(error);
+  const message = document.createElement("div");
+  message.className = "fatal-error";
+  message.textContent = "Fried Race konnte nicht gestartet werden. Bitte lade die Seite neu.";
+  root.replaceChildren(message);
+});
 
 if (import.meta.hot) {
   import.meta.hot.dispose(() => game.dispose());

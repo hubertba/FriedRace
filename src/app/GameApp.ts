@@ -27,6 +27,7 @@ export class GameApp {
   private previousTime = 0;
   private resizeHandler?: () => void;
   private mapKeyHandler?: (event: KeyboardEvent) => void;
+  private hasTestHooks = false;
 
   constructor(private readonly root: HTMLElement) {
     this.canvas.dataset.gameCanvas = "";
@@ -98,6 +99,35 @@ export class GameApp {
       if (vehicle && canEnterRally(vehicle, rally)) rallyRun = startRally(rally, performance.now());
     });
     this.root.append(garage.openButton, garage.element, mysteryView.element, rallyButton);
+
+    if (import.meta.env.DEV && new URLSearchParams(location.search).get("e2e") === "1") {
+      this.hasTestHooks = true;
+      (window as typeof window & { __friedRaceTest?: unknown }).__friedRaceTest = {
+        profile: () => structuredClone(profile),
+        setMoney: (money: number) => {
+          profile = { ...profile, money };
+          saveProfile(localStorage, profile);
+          garage.render(profile, VEHICLES);
+        },
+        teleportToGarage: () => this.vehicle!.teleport({ x: this.world!.spawn.x, z: this.world!.spawn.z }),
+        teleportToRallyStart: () => this.vehicle!.teleport(rally.start),
+        startNearbyWaypoint: () => {
+          const position = this.vehicle!.position();
+          waypoint = startWaypointChallenge(
+            { x: position.x, z: position.z },
+            { x: position.x + 20, z: position.z },
+            performance.now(),
+          );
+        },
+        finishWaypoint: () => { if (waypoint) this.vehicle!.teleport(waypoint.target); },
+        completeRally: async () => {
+          for (const point of [...rally.checkpoints, rally.finish]) {
+            this.vehicle!.teleport(point);
+            await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+          }
+        },
+      };
+    }
     let waypoint: WaypointChallenge | undefined;
     let waypointMarker: THREE.Mesh | undefined;
     mapOverlay.onConfirm((target) => {
@@ -185,7 +215,7 @@ export class GameApp {
           if (waypointMarker) scene.remove(waypointMarker);
         }
       }
-      hud.render({ speedKph: this.vehicle!.speedKph(), money: profile.money, timerText });
+      hud.render({ speedKph: this.vehicle!.speedKph(), money: profile.money, timerText, activeVehicle: currentVehicle.name });
       this.renderer!.render(scene, camera);
       this.frame = requestAnimationFrame(tick);
     };
@@ -199,6 +229,7 @@ export class GameApp {
     if (this.mapKeyHandler) removeEventListener("keydown", this.mapKeyHandler);
     this.world?.dispose();
     this.renderer?.dispose();
+    if (this.hasTestHooks) delete (window as typeof window & { __friedRaceTest?: unknown }).__friedRaceTest;
     this.root.replaceChildren();
   }
 }
