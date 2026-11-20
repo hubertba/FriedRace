@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a locally saved, browser-based 3D arcade driving MVP with a garage, waypoint challenges, one rally event, vehicle purchases, and mystery-box rewards.
+**Goal:** Build a locally saved, browser-based 3D arcade driving MVP with a connected OpenStreetMap-derived region, garage, waypoint challenges, one rally event, vehicle purchases, and mystery-box rewards.
 
-**Architecture:** Keep deterministic game rules in framework-free TypeScript modules and isolate Three.js/Rapier behind runtime adapters. A single `GameApp` composes simulation, rendering, HTML overlays, and versioned browser persistence; content such as vehicles and events is data-driven.
+**Architecture:** Keep deterministic game rules in framework-free TypeScript modules and isolate Three.js/Rapier behind runtime adapters. A development-time importer converts selected OSM/Overpass road data into compact local JSON; a single `GameApp` composes that map data with simulation, rendering, HTML overlays, and versioned browser persistence.
 
-**Tech Stack:** TypeScript, Vite, Three.js, `@dimforge/rapier3d-compat`, Vitest with jsdom, Playwright, CSS, browser `localStorage`.
+**Tech Stack:** TypeScript, Vite, Three.js, `@dimforge/rapier3d-compat`, Vitest with jsdom, Playwright, CSS, browser `localStorage`, OpenStreetMap/Overpass data processed at development time.
 
 **Spec:** `docs/superpowers/specs/2026-11-20-fried-race-design.md`
 
@@ -16,7 +16,9 @@
 - Start every new profile with €30,000 and ownership of the 1995 Mitsubishi Eclipse placeholder vehicle.
 - Controls are W to accelerate, S to brake/reverse, and A/D to steer.
 - Use arcade handling, a third-person chase camera, and km/h speed display.
-- The initial world is compact and stylized, not a geographically exact copy of the named towns.
+- The initial world contains connected, simplified OSM roads for Unterwart, Oberwart, Pinkafeld, Oberschützen, and Großpetersdorf; distances may be compressed and are not geographically exact.
+- Fetch OSM data only during development, bundle the last valid generated map, and display `© OpenStreetMap contributors` linked to `https://www.openstreetmap.org/copyright`.
+- Runtime gameplay must not depend on OSM or Overpass availability.
 - Multiplayer, accounts, traffic, damage, tuning, police, and real-money purchases are out of scope.
 - Use only project-created or license-compatible placeholder models, textures, and sounds.
 - Keep economy and race-rule modules independent of the browser and renderer so a future server can reuse them.
@@ -25,9 +27,10 @@
 
 - Corrupt or outdated local saves must fall back or migrate without preventing startup; pinned in Task 3 persistence tests.
 - Holding S while moving forward must brake before reverse acceleration begins; pinned in Task 4 controller tests.
-- Invalid/off-world waypoint placement must not start a challenge; pinned in Task 6 waypoint tests.
-- Rally checkpoints completed out of order must not award a finish; pinned in Task 8 rally tests.
-- Duplicate mystery-box vehicles must become configured cash rather than duplicate ownership; pinned in Task 7 reward tests.
+- Invalid or incomplete OSM responses must not overwrite the last valid bundled map; pinned in Task 5 importer tests.
+- Invalid/off-world waypoint placement must not start a challenge; pinned in Task 7 waypoint tests.
+- Rally checkpoints completed out of order must not award a finish; pinned in Task 9 rally tests.
+- Duplicate mystery-box vehicles must become configured cash rather than duplicate ownership; pinned in Task 8 reward tests.
 
 ---
 
@@ -41,6 +44,7 @@ src/app/GameApp.ts                 Runtime composition and main loop
 src/app/createInitialProfile.ts    Initial player state
 src/content/vehicles.ts            Vehicle catalog and handling values
 src/content/events.ts              Rally and reward configuration
+src/content/map/region.json        Generated, bundled OSM road network
 src/domain/types.ts                Shared domain types
 src/domain/economy.ts              Purchases and balance changes
 src/domain/persistence.ts          Save validation, migration, storage adapter
@@ -50,7 +54,8 @@ src/domain/mysteryBox.ts           Weighted rewards and duplicate conversion
 src/input/KeyboardInput.ts         W/A/S/D and reset/map actions
 src/simulation/ArcadeVehicle.ts    Pure vehicle control calculations
 src/simulation/VehicleRuntime.ts   Rapier vehicle body adapter
-src/world/createWorld.ts           Three.js scene, roads, towns, garage, rally area
+src/world/mapData.ts               Map schema, validation, and local projection
+src/world/createWorld.ts           Three.js scene from OSM roads, towns, garage, rally area
 src/world/ChaseCamera.ts           Third-person camera behavior
 src/world/worldBounds.ts           Valid play and waypoint bounds
 src/ui/Hud.ts                      Speed, money, timer, direction display
@@ -60,6 +65,9 @@ src/ui/MysteryBoxView.ts           Reward reveal overlay
 src/styles.css                     Fullscreen canvas and overlay styling
 tests/domain/*.test.ts             Unit tests for game rules
 tests/simulation/*.test.ts         Vehicle-control tests
+tests/world/osmMap.test.ts         OSM conversion and fallback tests
+tests/fixtures/osm-region.json     Small deterministic Overpass fixture
+scripts/import-osm.ts              Development-time OSM downloader/converter
 tests/e2e/mvp.spec.ts              Browser-level playable-flow test
 playwright.config.ts               Browser test configuration
 vite.config.ts                     Build and test configuration
@@ -250,7 +258,48 @@ git add src/input src/simulation/ArcadeVehicle.ts tests/simulation
 git commit -m "feat: add arcade keyboard driving controls"
 ```
 
-### Task 5: Playable 3D World, Rapier Runtime, Camera, and HUD
+### Task 5: OpenStreetMap Import Pipeline
+
+**Files:**
+- Create: `scripts/import-osm.ts`
+- Create: `src/world/mapData.ts`
+- Create: `src/content/map/region.json`
+- Create: `tests/fixtures/osm-region.json`
+- Create: `tests/world/osmMap.test.ts`
+- Modify: `package.json`
+
+**Interfaces:**
+- Consumes: Overpass JSON containing nodes and highway ways for the five-town region.
+- Produces: `ImportedMap`, `convertOsmToMap(input: OverpassResponse): ImportedMap`, `validateImportedMap(value: unknown): ImportedMap | null`, and npm script `map:import`.
+
+- [ ] **Step 1: Write failing OSM conversion and fallback tests**
+
+Use a deterministic fixture to assert that only driveable highway classes are retained, projected coordinates are finite and centered near zero, duplicate consecutive points are removed, all five place labels exist, and the generated graph contains a route connecting Unterwart, Oberwart, Pinkafeld, Oberschützen, and Großpetersdorf. Test the file-update helper with an invalid/incomplete response and assert that it leaves existing map JSON byte-for-byte unchanged.
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `npm test -- tests/world/osmMap.test.ts`
+
+Expected: FAIL because the importer and map schema do not exist.
+
+- [ ] **Step 3: Implement development-time import and checked-in fallback**
+
+Add `tsx` as a development dependency and `map:import` as `tsx scripts/import-osm.ts`. Query a bounding area covering all five towns for named places and driveable `highway` ways, send a descriptive User-Agent, project latitude/longitude to local meters, retain `motorway|trunk|primary|secondary|tertiary|unclassified|residential|service`, simplify dense polylines, and compress long distances with one documented constant. Validate town labels, non-empty roads, finite coordinates, and graph connectivity before atomically replacing `src/content/map/region.json`; on fetch or validation failure, exit non-zero without changing the existing file.
+
+- [ ] **Step 4: Verify importer tests and bundled data**
+
+Run: `npm test -- tests/world/osmMap.test.ts && npm run map:import && npm run build`
+
+Expected: tests PASS; import writes valid local JSON containing all five connected towns; build exits 0 without making any runtime network request.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add package.json package-lock.json scripts src/world/mapData.ts src/content/map tests/fixtures tests/world/osmMap.test.ts
+git commit -m "feat: import connected OpenStreetMap road data"
+```
+
+### Task 6: Playable 3D World, Rapier Runtime, Camera, and HUD
 
 **Files:**
 - Create: `src/simulation/VehicleRuntime.ts`
@@ -263,7 +312,7 @@ git commit -m "feat: add arcade keyboard driving controls"
 - Create: `tests/e2e/driving.spec.ts`
 
 **Interfaces:**
-- Consumes: active `VehicleDefinition`, `KeyboardInput`, and `stepArcadeVehicle()`.
+- Consumes: active `VehicleDefinition`, `KeyboardInput`, `stepArcadeVehicle()`, and validated `ImportedMap` from Task 5.
 - Produces: `VehicleRuntime.update(input, dt): void`, `VehicleRuntime.reset(): void`, `VehicleRuntime.speedKph(): number`, `createWorld(scene, physics): WorldDefinition`, `ChaseCamera.update(target, dt): void`, and `Hud.render({ speedKph, money, timerText }): void`.
 
 - [ ] **Step 1: Write the failing driving smoke test**
@@ -278,7 +327,7 @@ Expected: FAIL because no world, runtime, or HUD exists.
 
 - [ ] **Step 3: Implement the minimal playable world**
 
-Initialize Rapier asynchronously. Build a low-poly ground, roads, four labeled zones, garage landmark, rally area, static colliders, lighting, fog, and bounded play area. Use a box-based placeholder car, dynamic rigid body with locked excessive roll/pitch, ray-based ground detection, force application from Task 4, chase camera smoothing, and an R-key/reset button action.
+Initialize Rapier asynchronously. Build a low-poly ground, road meshes and colliders from the bundled OSM polylines, five labeled town zones, garage landmark, rally area, lighting, fog, and bounded play area. Show the required OpenStreetMap attribution link in the UI. Use a box-based placeholder car, dynamic rigid body with locked excessive roll/pitch, ray-based ground detection, force application from Task 4, chase camera smoothing, and an R-key/reset button action.
 
 - [ ] **Step 4: Verify driving and regression checks**
 
@@ -293,7 +342,7 @@ git add src/app src/simulation/VehicleRuntime.ts src/world src/ui/Hud.ts src/sty
 git commit -m "feat: add playable 3d driving world"
 ```
 
-### Task 6: Map and Waypoint Time Challenges
+### Task 7: Map and Waypoint Time Challenges
 
 **Files:**
 - Create: `src/domain/waypointChallenge.ts`
@@ -340,7 +389,7 @@ git add src/domain/waypointChallenge.ts src/ui/MapOverlay.ts src/app/GameApp.ts 
 git commit -m "feat: add waypoint time challenges"
 ```
 
-### Task 7: Garage, Vehicle Shop, and Mystery Boxes
+### Task 8: Garage, Vehicle Shop, and Mystery Boxes
 
 **Files:**
 - Create: `src/domain/mysteryBox.ts`
@@ -381,7 +430,7 @@ git add src/domain/mysteryBox.ts src/ui/GarageMenu.ts src/ui/MysteryBoxView.ts s
 git commit -m "feat: add garage shop and mystery rewards"
 ```
 
-### Task 8: Class-Restricted Rally Event
+### Task 9: Class-Restricted Rally Event
 
 **Files:**
 - Create: `src/content/events.ts`
@@ -422,7 +471,7 @@ git add src/content/events.ts src/domain/rally.ts src/world/createWorld.ts src/a
 git commit -m "feat: add class restricted rally event"
 ```
 
-### Task 9: Complete MVP Flow and Release Verification
+### Task 10: Complete MVP Flow and Release Verification
 
 **Files:**
 - Create: `tests/e2e/mvp.spec.ts`

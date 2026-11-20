@@ -12,7 +12,7 @@ Die erste Version soll unkompliziert im Browser starten und vor allem für den B
 - Arcade-Fahrgefühl mit Verfolgerkamera hinter dem Fahrzeug.
 - Startkapital von 30.000 Euro und ein Mitsubishi Eclipse (1995) als Startfahrzeug.
 - Garage als Startpunkt und zentrale Fahrzeugauswahl.
-- Frei befahrbare, stilisierte Spielwelt, inspiriert von Unterwart, Oberwart, Pinkafeld und Großpetersdorf.
+- Frei befahrbare, stilisierte Spielwelt mit aus OpenStreetMap übernommenen Hauptstraßen von Unterwart, Oberwart, Pinkafeld, Oberschützen und Großpetersdorf sowie ihren Verbindungen.
 - Wegpunkt-Zeitfahrten als wiederholbare Einnahmequelle.
 - Separate Rallye-Veranstaltung mit Fahrzeugklassen-Beschränkung.
 - Geldpreise und Mystery-Boxen als Belohnungen.
@@ -22,7 +22,7 @@ Die erste Version soll unkompliziert im Browser starten und vor allem für den B
 
 ## Nicht-Ziele der ersten Version
 
-- Exakte geografische oder fotorealistische Nachbildung der vier Orte.
+- Maßstabsgetreue oder fotorealistische Nachbildung der fünf Orte; die OSM-Straßen werden für ein kompaktes Spielnetz vereinfacht und räumlich komprimiert.
 - Realistische Fahrsimulation oder detailgetreue Fahrzeugmechanik.
 - Online-Mehrspieler, Benutzerkonten oder zentral gespeicherte Spielstände.
 - Fahrzeug-Tuning, Schäden, Polizei, Verkehr oder Fußgänger.
@@ -41,6 +41,8 @@ Die erste Version gilt als verfehlt, wenn sie zwar viele Menüs oder Fahrzeuge e
 - Tastatursteuerung mit W, A, S und D.
 - Kleine erste Version, die später erweitert werden kann.
 - Externe 3D-Modelle und Markenzeichen dürfen nur verwendet werden, wenn ihre Lizenz dies erlaubt. Während der Entwicklung kann ein selbst erstelltes, stilisiertes Modell den Mitsubishi darstellen.
+- OpenStreetMap-Daten werden nur während der Entwicklung abgerufen, lokal verarbeitet und mit sichtbarer Quellenangabe „© OpenStreetMap-Mitwirkende“ gemäß ODbL bereitgestellt.
+- Das laufende Spiel darf nicht von der Verfügbarkeit eines Overpass- oder OSM-Dienstes abhängen.
 
 ## Betrachtete Ansätze
 
@@ -66,14 +68,17 @@ Die Anwendung verwendet TypeScript, Vite, Three.js und Rapier. Die Hauptbereiche
 - **Benutzeroberfläche:** Tachometer, Minikarte beziehungsweise Karte, Menüs und Rennanzeigen.
 - **Speicherung:** Versionierter lokaler Spielstand im Browser.
 - **Inhalte:** Fahrzeugwerte, Preise, Klassen und Rennkonfigurationen als Daten statt fest im Programmcode.
+- **Kartendaten-Pipeline:** Ein Entwicklungsskript lädt die benötigten OpenStreetMap-Wege einmalig über Overpass, filtert befahrbare Straßen, projiziert Koordinaten in lokale Spielkoordinaten, vereinfacht die Geometrie und schreibt eine kompakte, versionierte JSON-Datei für das Spiel.
 
 Diese Grenzen ermöglichen später, entscheidende Simulationen und Besitzdaten auf einen Server zu verschieben, ohne die gesamte Darstellung neu zu schreiben.
 
 ## Erste Spielwelt
 
-Die erste Welt ist eine kompakte, stilisierte Testregion. Vier Bereiche tragen die Namen Unterwart, Oberwart, Pinkafeld und Großpetersdorf und werden durch Straßen verbunden. Sie sind keine maßstabsgetreuen Abbilder. Markante Schilder, unterschiedliche Landschaftsfarben und eine einfache Straßenführung machen die Bereiche erkennbar.
+Die erste Welt ist eine kompakte, stilisierte Region auf Basis lokal gespeicherter OpenStreetMap-Daten. Sie enthält Unterwart, Oberwart, Pinkafeld, Oberschützen und Großpetersdorf sowie die wichtigsten Straßen, die diese Orte miteinander verbinden. Kleine Wohn- und Nebenwege dürfen beim Import entfallen, Sackgassen dürfen gekürzt und lange Streckenabschnitte räumlich komprimiert werden. Kreuzungen und die grundsätzliche Verbindung der Orte bleiben erkennbar.
 
-Die Garage liegt am Startpunkt. Eine eigene Rallye-Strecke befindet sich abseits der normalen Straßen. Unsichtbare Begrenzungen und Landschaftselemente verhindern, dass der Spieler die kleine Spielzone dauerhaft verlässt.
+Die importierten Geodaten erzeugen Straßenmittelachsen und daraus befahrbare 3D-Straßen mit Kollisionsflächen. Ortsnamen und ausgewählte OSM-Kategorien dienen zur Orientierung; Gebäude werden in der ersten Version nicht vollständig importiert, sondern durch einfache, stilisierte Umgebungsobjekte ergänzt. Falls der Online-Abruf fehlschlägt, bleibt die zuletzt erfolgreich erzeugte lokale Kartendatei nutzbar.
+
+Die Garage liegt am Startpunkt. Eine eigene Rallye-Strecke befindet sich abseits oder auf einem dafür geeigneten Teil des Straßennetzes. Unsichtbare Begrenzungen und Landschaftselemente verhindern, dass der Spieler die Spielzone dauerhaft verlässt. Im Kartenmenü oder Impressumsbereich wird „© OpenStreetMap-Mitwirkende“ mit einem Link auf openstreetmap.org/copyright angezeigt.
 
 ## Kern-Spielablauf
 
@@ -162,7 +167,7 @@ Ungültige oder alte Daten werden geprüft und, soweit möglich, migriert. Ein n
 
 Die erste spielbare Version umfasst:
 
-- Eine kompakte 3D-Testwelt mit Garage, Straßen und Rallye-Strecke.
+- Eine kompakte 3D-Welt mit lokal gebündelten, vereinfachten OSM-Straßen für alle fünf verbundenen Orte, Garage und Rallye-Strecke.
 - Einen fahrbaren stilisierten Eclipse.
 - Arcade-Steuerung und Verfolgerkamera.
 - Tachometer und Geldanzeige.
@@ -181,7 +186,8 @@ Eine spätere Version kann einen kleinen Server für Benutzerkonten, gemeinsame 
 Folgende Detailentscheidungen darf die Umsetzung treffen, ohne das Spieldesign zu ändern:
 
 - Genaue Farben, Schriften und Menüanordnung.
-- Konkrete Streckenführung der stilisierten Testwelt.
+- Konkreter Vereinfachungs- und Kompressionsfaktor des importierten OSM-Straßennetzes.
+- Auswahl der OSM-Straßenklassen, solange die Hauptverbindungen zwischen allen fünf Orten erhalten bleiben.
 - Taste zum Zurücksetzen des Fahrzeugs und Öffnen der Karte.
 - Anfangswerte für Geschwindigkeit, Preise, Belohnungen und Wahrscheinlichkeiten.
 - Auswahl frei nutzbarer Platzhaltermodelle und Geräusche.
