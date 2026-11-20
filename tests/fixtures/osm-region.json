@@ -1,0 +1,22 @@
+{
+  "elements": [
+    {"type":"node","id":1,"lat":47.270,"lon":16.230,"tags":{"place":"village","name":"Unterwart"}},
+    {"type":"node","id":2,"lat":47.290,"lon":16.210,"tags":{"place":"town","name":"Oberwart"}},
+    {"type":"node","id":3,"lat":47.370,"lon":16.120,"tags":{"place":"town","name":"Pinkafeld"}},
+    {"type":"node","id":4,"lat":47.350,"lon":16.200,"tags":{"place":"village","name":"Oberschützen"}},
+    {"type":"node","id":5,"lat":47.240,"lon":16.320,"tags":{"place":"town","name":"Großpetersdorf"}},
+    {"type":"node","id":10,"lat":47.270,"lon":16.230},
+    {"type":"node","id":11,"lat":47.290,"lon":16.210},
+    {"type":"node","id":12,"lat":47.330,"lon":16.165},
+    {"type":"node","id":13,"lat":47.370,"lon":16.120},
+    {"type":"node","id":14,"lat":47.350,"lon":16.200},
+    {"type":"node","id":15,"lat":47.295,"lon":16.260},
+    {"type":"node","id":16,"lat":47.240,"lon":16.320},
+    {"type":"node","id":17,"lat":47.291,"lon":16.211},
+    {"type":"way","id":100,"nodes":[10,11,11,12,13],"tags":{"highway":"primary","name":"B63"}},
+    {"type":"way","id":101,"nodes":[11,14,15,16],"tags":{"highway":"secondary","name":"Connected road"}},
+    {"type":"way","id":102,"nodes":[12,14],"tags":{"highway":"tertiary","name":"Cross link"}},
+    {"type":"way","id":103,"nodes":[11,17],"tags":{"highway":"residential","name":"Local street"}},
+    {"type":"way","id":999,"nodes":[10,16],"tags":{"highway":"footway"}}
+  ]
+}
