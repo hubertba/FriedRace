@@ -27,3 +27,36 @@ canvas[data-game-canvas] {
   border-radius: 0.5rem;
   background: rgb(0 0 0 / 70%);
 }
+
+.hud {
+  position: fixed;
+  top: 1rem;
+  left: 1rem;
+  display: grid;
+  gap: 0.4rem;
+  min-width: 12rem;
+  padding: 0.8rem;
+  border: 1px solid rgb(255 255 255 / 20%);
+  border-radius: 0.7rem;
+  background: rgb(8 15 22 / 78%);
+  backdrop-filter: blur(8px);
+}
+
+.hud strong:first-child { font-size: 1.8rem; }
+.hud button {
+  padding: 0.45rem 0.65rem;
+  border: 0;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.osm-attribution {
+  position: fixed;
+  right: 0.5rem;
+  bottom: 0.5rem;
+  padding: 0.25rem 0.4rem;
+  border-radius: 0.25rem;
+  background: rgb(255 255 255 / 82%);
+  color: #17212b;
+  font-size: 0.75rem;
+}
