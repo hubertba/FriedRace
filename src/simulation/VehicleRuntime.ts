@@ -12,7 +12,7 @@ export class VehicleRuntime {
     private readonly body: RAPIER.RigidBody,
     scene: THREE.Scene,
     private readonly spawn: THREE.Vector3,
-    private readonly vehicle: VehicleDefinition,
+    private vehicle: VehicleDefinition,
   ) {
     this.object = new THREE.Mesh(
       new THREE.BoxGeometry(2, 0.9, 4.2),
@@ -53,6 +53,12 @@ export class VehicleRuntime {
     this.body.setRotation({ x: 0, y: 0, z: 0, w: 1 }, true);
     this.syncObject();
     document.body.dataset.atSpawn = "true";
+  }
+
+  setVehicle(vehicle: VehicleDefinition): void {
+    this.vehicle = vehicle;
+    this.object.scale.set(vehicle.class === "offroad" ? 1.15 : 1, vehicle.class === "offroad" ? 1.25 : 1, 1);
+    this.reset();
   }
 
   speedKph(): number { return this.speed * 3.6; }

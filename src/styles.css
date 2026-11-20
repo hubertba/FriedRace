@@ -50,6 +50,39 @@ canvas[data-game-canvas] {
   cursor: pointer;
 }
 
+.garage-button {
+  position: fixed;
+  top: 4rem;
+  right: 1rem;
+  padding: 0.6rem 0.9rem;
+}
+
+.garage-menu {
+  position: fixed;
+  inset: 3rem;
+  z-index: 6;
+  overflow: auto;
+  padding: 1.2rem;
+  border-radius: 0.8rem;
+  background: rgb(7 14 20 / 96%);
+}
+.garage-menu[hidden], .mystery-reveal[hidden] { display: none; }
+.vehicle-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 0.8rem; }
+.vehicle-list article { padding: 0.8rem; border: 1px solid #526474; border-radius: 0.6rem; }
+.garage-menu button { padding: 0.55rem 0.8rem; }
+.mystery-reveal {
+  position: fixed;
+  inset: 40% auto auto 50%;
+  z-index: 8;
+  transform: translate(-50%, -50%);
+  padding: 1.2rem 1.8rem;
+  border-radius: 0.8rem;
+  background: #ffc107;
+  color: #17212b;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
 .map-button {
   position: fixed;
   top: 1rem;

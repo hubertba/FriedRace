@@ -1,12 +1,15 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
-import { vehicleById } from "../content/vehicles";
+import { VEHICLES, vehicleById } from "../content/vehicles";
+import { purchaseVehicle } from "../domain/economy";
 import { loadProfile, saveProfile } from "../domain/persistence";
 import { startWaypointChallenge, updateWaypointChallenge, type WaypointChallenge } from "../domain/waypointChallenge";
 import { KeyboardInput } from "../input/KeyboardInput";
 import { VehicleRuntime } from "../simulation/VehicleRuntime";
+import { GarageMenu } from "../ui/GarageMenu";
 import { Hud } from "../ui/Hud";
 import { MapOverlay } from "../ui/MapOverlay";
+import { MysteryBoxView } from "../ui/MysteryBoxView";
 import { ChaseCamera } from "../world/ChaseCamera";
 import { createWorld, type WorldDefinition } from "../world/createWorld";
 
@@ -61,6 +64,26 @@ export class GameApp {
 
     const mapOverlay = new MapOverlay(this.world.map, this.world.bounds);
     this.root.append(mapOverlay.openButton, mapOverlay.element);
+    const garage = new GarageMenu();
+    garage.render(profile, VEHICLES);
+    garage.onBuy((vehicleId) => {
+      const vehicle = vehicleById(vehicleId);
+      if (!vehicle) return;
+      const result = purchaseVehicle(profile, vehicle);
+      profile = result.profile;
+      if (result.ok) saveProfile(localStorage, profile);
+      garage.render(profile, VEHICLES);
+    });
+    garage.onSelect((vehicleId) => {
+      const vehicle = vehicleById(vehicleId);
+      if (!vehicle || !profile.ownedVehicleIds.includes(vehicleId)) return;
+      profile = { ...profile, activeVehicleId: vehicleId };
+      saveProfile(localStorage, profile);
+      this.vehicle!.setVehicle(vehicle);
+      garage.render(profile, VEHICLES);
+    });
+    const mysteryView = new MysteryBoxView();
+    this.root.append(garage.openButton, garage.element, mysteryView.element);
     let waypoint: WaypointChallenge | undefined;
     let waypointMarker: THREE.Mesh | undefined;
     mapOverlay.onConfirm((target) => {
@@ -75,7 +98,9 @@ export class GameApp {
       scene.add(waypointMarker);
     });
     this.mapKeyHandler = (event) => {
-      if (event.code === "KeyM" && !event.repeat) mapOverlay.toggle();
+      if (event.repeat) return;
+      if (event.code === "KeyM") mapOverlay.toggle();
+      if (event.code === "KeyG" && !garage.openButton.disabled) garage.toggle();
     };
     addEventListener("keydown", this.mapKeyHandler);
 
@@ -101,12 +126,15 @@ export class GameApp {
     const tick = (time: number): void => {
       const dt = Math.min((time - this.previousTime) / 1000 || 1 / 60, 0.05);
       this.previousTime = time;
-      const driveInput = mapOverlay.isOpen ? { throttle: 0, brake: 0, steer: 0 } : this.keyboard!.sample();
+      const inMenu = mapOverlay.isOpen || garage.isOpen;
+      const driveInput = inMenu ? { throttle: 0, brake: 0, steer: 0 } : this.keyboard!.sample();
       this.vehicle!.update(driveInput, dt);
       if (this.keyboard!.isPressed("KeyR")) this.vehicle!.reset();
       physics.step();
       chaseCamera.update(this.vehicle!.object, dt);
-      let timerText = "Freie Fahrt";
+      const garageDistance = this.vehicle!.position().distanceTo(this.world!.spawn);
+      garage.setAvailable(garageDistance < 28 && Math.abs(this.vehicle!.speedKph()) < 3);
+      let timerText = garageDistance < 28 ? "Garage: G" : "Freie Fahrt";
       if (waypoint) {
         const position = this.vehicle!.position();
         const update = updateWaypointChallenge(waypoint, { x: position.x, z: position.z }, time);
