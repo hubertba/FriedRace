@@ -13,6 +13,11 @@ test("completes the MVP economy, garage, waypoint, persistence, and rally flow",
   await page.keyboard.up("w");
 
   await page.evaluate(() => (window as any).__friedRaceTest.startNearbyWaypoint());
+  await page.getByTestId("reset-car").click();
+  await page.evaluate(() => (window as any).__friedRaceTest.finishWaypoint());
+  await expect.poll(() => page.evaluate(() => (window as any).__friedRaceTest.profile().money)).toBe(30_000);
+
+  await page.evaluate(() => (window as any).__friedRaceTest.startNearbyWaypoint());
   await page.evaluate(() => (window as any).__friedRaceTest.finishWaypoint());
   await expect.poll(() => page.evaluate(() => (window as any).__friedRaceTest.profile().money)).toBeGreaterThan(30_000);
 

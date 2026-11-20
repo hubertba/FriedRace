@@ -6,9 +6,31 @@ export const SAVE_KEY = "fried-race-save";
 export const SAVE_VERSION = 1;
 
 export interface StorageLike {
+  readonly persistent?: boolean;
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
+
+class MemoryStorage implements StorageLike {
+  readonly persistent = false;
+  private readonly values = new Map<string, string>();
+  getItem(key: string): string | null { return this.values.get(key) ?? null; }
+  setItem(key: string, value: string): void { this.values.set(key, value); }
+}
+
+export const resolveStorage = (getStorage: () => StorageLike): StorageLike => {
+  try {
+    const storage = getStorage();
+    storage.getItem(SAVE_KEY);
+    return {
+      persistent: storage.persistent ?? true,
+      getItem: (key) => storage.getItem(key),
+      setItem: (key, value) => storage.setItem(key, value),
+    };
+  } catch {
+    return new MemoryStorage();
+  }
+};
 
 export interface SaveEnvelope {
   version: 1;
@@ -60,7 +82,12 @@ export const loadProfile = (storage: StorageLike): PlayerProfile => {
   return createInitialProfile();
 };
 
-export const saveProfile = (storage: StorageLike, profile: PlayerProfile): void => {
-  const envelope: SaveEnvelope = { version: SAVE_VERSION, profile: normalize(profile) };
-  storage.setItem(SAVE_KEY, JSON.stringify(envelope));
+export const saveProfile = (storage: StorageLike, profile: PlayerProfile): boolean => {
+  try {
+    const envelope: SaveEnvelope = { version: SAVE_VERSION, profile: normalize(profile) };
+    storage.setItem(SAVE_KEY, JSON.stringify(envelope));
+    return true;
+  } catch {
+    return false;
+  }
 };

@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
 import { createInitialProfile } from "../../src/app/createInitialProfile";
-import { loadProfile, SAVE_KEY, saveProfile, type StorageLike } from "../../src/domain/persistence";
+import { loadProfile, resolveStorage, SAVE_KEY, saveProfile, type StorageLike } from "../../src/domain/persistence";
 
 class MemoryStorage implements StorageLike {
   data = new Map<string, string>();
@@ -38,6 +38,18 @@ test("normalizes corrupt money and unknown vehicles", () => {
     },
   };
   expect(loadProfile(containing(JSON.stringify(corrupt)))).toEqual(createInitialProfile());
+});
+
+test("continues with memory storage when browser storage access or writes fail", () => {
+  const fallback = resolveStorage(() => { throw new DOMException("denied"); });
+  expect(saveProfile(fallback, createInitialProfile())).toBe(true);
+  expect(loadProfile(fallback)).toEqual(createInitialProfile());
+  const denied: StorageLike = {
+    getItem: () => null,
+    setItem: () => { throw new DOMException("quota"); },
+  };
+  expect(() => saveProfile(denied, createInitialProfile())).not.toThrow();
+  expect(saveProfile(denied, createInitialProfile())).toBe(false);
 });
 
 test("migrates a version zero profile", () => {

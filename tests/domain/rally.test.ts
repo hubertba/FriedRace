@@ -5,7 +5,7 @@ import type { VehicleDefinition } from "../../src/domain/types";
 const rally: RallyDefinition = {
   id: "test-rally", name: "Test Rally", allowedClasses: ["rally", "offroad"],
   start: { x: 0, z: 0 }, checkpoints: [{ x: 20, z: 0 }, { x: 40, z: 0 }], finish: { x: 60, z: 0 },
-  moneyReward: 5_000, mysteryBoxes: 1,
+  moneyReward: 5_000, mysteryBoxes: 1, targetTimeMs: 30_000, maxCourseDistance: 25,
 };
 const vehicle = (vehicleClass: VehicleDefinition["class"]): VehicleDefinition => ({
   id: vehicleClass, name: vehicleClass, class: vehicleClass, price: 1, topSpeedKph: 1,
@@ -16,6 +16,19 @@ test("restricts entry by vehicle class", () => {
   expect(canEnterRally(vehicle("road"), rally)).toBe(false);
   expect(canEnterRally(vehicle("rally"), rally)).toBe(true);
   expect(canEnterRally(vehicle("offroad"), rally)).toBe(true);
+});
+
+test("invalidates runs that leave the course or exceed the target time", () => {
+  const offCourse = updateRally(startRally(rally, 0), { x: 0, z: 100 }, 1_000);
+  expect(offCourse.failed).toBe(true);
+  expect(offCourse.moneyReward).toBe(0);
+
+  let late = startRally(rally, 0);
+  late = updateRally(late, rally.checkpoints[0]!, 10_000).run;
+  late = updateRally(late, rally.checkpoints[1]!, 20_000).run;
+  const result = updateRally(late, rally.finish, 31_000);
+  expect(result.failed).toBe(true);
+  expect(result.moneyReward).toBe(0);
 });
 
 test("requires checkpoints in order and rejects a finish shortcut", () => {

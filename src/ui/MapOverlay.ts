@@ -8,6 +8,7 @@ export class MapOverlay {
   private readonly canvas = document.createElement("canvas");
   private readonly confirmButton = document.createElement("button");
   private selected?: Point2;
+  private playerPosition?: Point2;
   private confirmHandler?: (point: Point2) => void;
 
   constructor(private readonly map: ImportedMap, private readonly bounds: WorldBounds) {
@@ -28,6 +29,9 @@ export class MapOverlay {
     close.addEventListener("click", () => this.hide());
     this.confirmButton.addEventListener("click", () => {
       if (this.selected) this.confirmHandler?.(this.selected);
+      this.selected = undefined;
+      this.confirmButton.disabled = true;
+      this.draw();
       this.hide();
     });
     this.canvas.addEventListener("click", (event) => this.select(event));
@@ -35,6 +39,7 @@ export class MapOverlay {
   }
 
   onConfirm(handler: (point: Point2) => void): void { this.confirmHandler = handler; }
+  setPlayerPosition(point: Point2): void { this.playerPosition = point; if (this.isOpen) this.draw(); }
   get isOpen(): boolean { return !this.element.hidden; }
   toggle(): void { this.element.hidden ? this.show() : this.hide(); }
   show(): void { this.element.hidden = false; }
@@ -55,7 +60,12 @@ export class MapOverlay {
       x: this.bounds.minX + (x / this.canvas.width) * (this.bounds.maxX - this.bounds.minX),
       z: this.bounds.minZ + (y / this.canvas.height) * (this.bounds.maxZ - this.bounds.minZ),
     };
-    if (!isValidWaypoint(point, this.bounds)) return;
+    if (!isValidWaypoint(point, this.bounds)) {
+      this.selected = undefined;
+      this.confirmButton.disabled = true;
+      this.draw();
+      return;
+    }
     this.selected = point;
     this.confirmButton.disabled = false;
     this.draw();
@@ -87,6 +97,13 @@ export class MapOverlay {
       context.fillStyle = "#e53935";
       context.beginPath();
       context.arc(x, y, 7, 0, Math.PI * 2);
+      context.fill();
+    }
+    if (this.playerPosition) {
+      const [x, y] = this.toCanvas(this.playerPosition);
+      context.fillStyle = "#29b6f6";
+      context.beginPath();
+      context.arc(x, y, 6, 0, Math.PI * 2);
       context.fill();
     }
   }

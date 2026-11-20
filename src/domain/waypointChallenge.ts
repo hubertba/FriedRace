@@ -17,12 +17,17 @@ export const isValidWaypoint = (point: Point2, bounds: WorldBounds): boolean =>
   && point.x >= bounds.minX && point.x <= bounds.maxX
   && point.z >= bounds.minZ && point.z <= bounds.maxZ;
 
-export const startWaypointChallenge = (start: Point2, target: Point2, now: number): WaypointChallenge => ({
-  start: { ...start },
-  target: { ...target },
-  startedAt: now,
-  distance: distance(start, target),
-});
+export const startWaypointChallenge = (start: Point2, target: Point2, now: number): WaypointChallenge => {
+  if (![start.x, start.z, target.x, target.z, now].every(Number.isFinite)) throw new Error("Waypoint values must be finite");
+  const routeDistance = distance(start, target);
+  if (routeDistance <= 15) throw new Error("Waypoint must be farther than the arrival radius");
+  return {
+    start: { ...start },
+    target: { ...target },
+    startedAt: now,
+    distance: routeDistance,
+  };
+};
 
 export const updateWaypointChallenge = (
   challenge: WaypointChallenge,

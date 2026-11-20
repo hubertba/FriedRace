@@ -3,6 +3,21 @@ import * as THREE from "three";
 import type { VehicleDefinition } from "../domain/types";
 import { stepArcadeVehicle, type DriveInput } from "./ArcadeVehicle";
 
+export const FIXED_STEP = 1 / 60;
+export const forwardVelocity = (heading: number, speed: number): { x: number; z: number } => ({
+  x: -Math.sin(heading) * speed,
+  z: -Math.cos(heading) * speed,
+});
+export const consumeFixedSteps = (accumulator: number, elapsed: number): { steps: number; accumulator: number } => {
+  let remaining = accumulator + Math.min(Math.max(elapsed, 0), 0.25);
+  let steps = 0;
+  while (remaining + Number.EPSILON >= FIXED_STEP && steps < 15) {
+    remaining -= FIXED_STEP;
+    steps += 1;
+  }
+  return { steps, accumulator: Math.max(0, remaining) };
+};
+
 export class VehicleRuntime {
   readonly object: THREE.Mesh;
   private speed = 0;
@@ -23,25 +38,26 @@ export class VehicleRuntime {
     this.reset();
   }
 
-  update(input: DriveInput, dt: number): void {
+  update(input: DriveInput, dt: number, onRoad = true): void {
+    const grip = onRoad ? 1 : this.vehicle.offroadGrip;
     const tuning = {
       topSpeedMps: this.vehicle.topSpeedKph / 3.6,
-      acceleration: this.vehicle.acceleration,
-      braking: this.vehicle.braking,
-      steering: this.vehicle.steering,
+      acceleration: this.vehicle.acceleration * grip,
+      braking: this.vehicle.braking * (0.7 + grip * 0.3),
+      steering: this.vehicle.steering * (0.6 + grip * 0.4),
     };
     const forces = stepArcadeVehicle({ forwardSpeedMps: this.speed }, input, tuning, dt);
     if (forces.driveForce > 0) this.speed += forces.driveForce * forces.dt;
     if (forces.driveForce < 0) this.speed = Math.max(0, this.speed + forces.driveForce * forces.dt);
     if (forces.reverseForce > 0) this.speed -= forces.reverseForce * forces.dt;
-    if (!input.throttle && !input.brake) this.speed *= Math.pow(0.985, forces.dt * 60);
+    if (!input.throttle && !input.brake) this.speed *= Math.pow(onRoad ? 0.985 : 0.96, forces.dt * 60);
     this.speed = Math.max(-tuning.topSpeedMps * 0.3, Math.min(tuning.topSpeedMps, this.speed));
     const direction = this.speed >= 0 ? 1 : -1;
     this.heading -= forces.steering * direction * Math.min(Math.abs(this.speed) / 12, 1) * forces.dt;
-    const velocity = { x: Math.sin(this.heading) * this.speed, y: this.body.linvel().y, z: -Math.cos(this.heading) * this.speed };
+    const horizontal = forwardVelocity(this.heading, this.speed);
+    const velocity = { ...horizontal, y: this.body.linvel().y };
     this.body.setLinvel(velocity, true);
     this.body.setRotation({ x: 0, y: Math.sin(this.heading / 2), z: 0, w: Math.cos(this.heading / 2) }, true);
-    this.syncObject();
   }
 
   reset(): void {
@@ -54,6 +70,8 @@ export class VehicleRuntime {
     this.syncObject();
     document.body.dataset.atSpawn = "true";
   }
+
+  syncAfterStep(): void { this.syncObject(); }
 
   teleport(point: { x: number; z: number }): void {
     this.speed = 0;

@@ -14,4 +14,6 @@ export const createStarterRally = (origin: Point2): RallyDefinition => ({
   finish: { x: origin.x + 35, z: origin.z - 30 },
   moneyReward: 8_000,
   mysteryBoxes: 1,
+  targetTimeMs: 120_000,
+  maxCourseDistance: 55,
 });

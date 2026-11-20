@@ -33,6 +33,14 @@ const isWay = (value: unknown): value is OsmWay => {
   return item?.type === "way" && typeof item.id === "number" && Array.isArray(item.nodes);
 };
 const key = (point: MapPoint): string => `${point.x.toFixed(4)},${point.z.toFixed(4)}`;
+const distanceToSegment = (point: MapPoint, start: MapPoint, end: MapPoint): number => {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.z - start.z);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.z - start.z) * dz) / lengthSquared));
+  return Math.hypot(point.x - (start.x + t * dx), point.z - (start.z + t * dz));
+};
 
 const largestConnectedWays = (ways: OsmWay[]): OsmWay[] => {
   if (ways.length === 0) return [];
@@ -77,6 +85,10 @@ export const convertOsmToMap = (input: OverpassResponse): ImportedMap => {
     z: -(node.lat - originLat) * 110_540 * MAP_COMPRESSION,
   });
   const driveableWays = input.elements.filter(isWay).filter((way) => DRIVEABLE.has(way.tags?.highway ?? ""));
+  for (const way of driveableWays) {
+    const missing = way.nodes.find((nodeId) => !nodeById.has(nodeId));
+    if (missing !== undefined) throw new Error(`Road ${way.id} references missing node ${missing}`);
+  }
   const connectedWays = largestConnectedWays(driveableWays);
   const roads = connectedWays.map((way) => {
     const points: MapPoint[] = [];
@@ -93,7 +105,7 @@ export const convertOsmToMap = (input: OverpassResponse): ImportedMap => {
   const points = [...towns, ...roads.flatMap((road) => road.points)];
   const xs = points.map((point) => point.x);
   const zs = points.map((point) => point.z);
-  return {
+  const result: ImportedMap = {
     version: 1,
     attribution: "© OpenStreetMap contributors",
     attributionUrl: "https://www.openstreetmap.org/copyright",
@@ -101,6 +113,8 @@ export const convertOsmToMap = (input: OverpassResponse): ImportedMap => {
     roads,
     bounds: { minX: Math.min(...xs), maxX: Math.max(...xs), minZ: Math.min(...zs), maxZ: Math.max(...zs) },
   };
+  if (!validateImportedMap(result)) throw new Error("Imported roads do not connect all required towns");
+  return result;
 };
 
 export const validateImportedMap = (value: unknown): ImportedMap | null => {
@@ -109,5 +123,9 @@ export const validateImportedMap = (value: unknown): ImportedMap | null => {
   if (!REQUIRED_TOWNS.every((name) => map.towns!.some((town) => town.name === name))) return null;
   const points = [...map.towns, ...map.roads.flatMap((road) => road.points ?? [])];
   if (!points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.z))) return null;
+  if (map.roads.some((road) => !Array.isArray(road.points) || road.points.length < 2)) return null;
+  const roadSegments = map.roads.flatMap((road) => road.points.slice(1).map((point, index) => [road.points[index]!, point] as const));
+  const allTownsNearRoads = map.towns.every((town) => roadSegments.some(([start, end]) => distanceToSegment(town, start, end) <= 60));
+  if (!allTownsNearRoads) return null;
   return map as ImportedMap;
 };

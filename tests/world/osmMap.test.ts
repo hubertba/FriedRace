@@ -46,7 +46,25 @@ describe("OSM map conversion", () => {
     expect(calls).toEqual(["first", "second"]);
   });
 
-  test("does not replace a valid map with incomplete data", async () => {
+  test("rejects a plausible partial map and missing road-node references", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "fried-race-osm-partial-"));
+    dirs.push(dir);
+    const output = join(dir, "region.json");
+    await writeFile(output, "existing-map", "utf8");
+    const partial = structuredClone({ elements: fixture.elements.filter((element) => [10, 11, 100].includes(element.id)) });
+    const partialWay = partial.elements.find((element) => element.type === "way")!;
+    if (partialWay.type === "way" && "nodes" in partialWay) partialWay.nodes = [10, 11];
+    await expect(replaceMapFileIfValid(output, partial)).rejects.toThrow();
+    expect(await readFile(output, "utf8")).toBe("existing-map");
+
+    const missingJunction = structuredClone(fixture) as typeof fixture;
+    const way = missingJunction.elements.find((element) => element.type === "way" && element.id === 100)!;
+    if (way.type === "way" && "nodes" in way && Array.isArray(way.nodes)) way.nodes.splice(1, 0, 123456789);
+    await expect(replaceMapFileIfValid(output, missingJunction)).rejects.toThrow(/missing node/i);
+    expect(await readFile(output, "utf8")).toBe("existing-map");
+  });
+
+  test("does not replace a valid map with empty data", async () => {
     const dir = await mkdtemp(join(tmpdir(), "fried-race-osm-"));
     dirs.push(dir);
     const output = join(dir, "region.json");

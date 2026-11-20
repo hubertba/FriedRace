@@ -20,6 +20,10 @@ test("completes within fifteen meters and rewards faster driving more", () => {
   expect(fast.reward).toBeGreaterThan(slow.reward);
 });
 
+test("rejects a target already inside the arrival radius", () => {
+  expect(() => startWaypointChallenge(start, { x: 10, z: 0 }, 0)).toThrow(/farther/i);
+});
+
 test("does not award twice after completion", () => {
   const challenge = startWaypointChallenge(start, target, 0);
   const first = updateWaypointChallenge(challenge, target, 10_000);
