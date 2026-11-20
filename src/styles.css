@@ -50,6 +50,33 @@ canvas[data-game-canvas] {
   cursor: pointer;
 }
 
+.map-button {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  padding: 0.6rem 0.9rem;
+}
+
+.map-overlay {
+  position: fixed;
+  inset: 4rem;
+  z-index: 5;
+  padding: 1rem;
+  border-radius: 0.8rem;
+  background: rgb(7 14 20 / 94%);
+  text-align: center;
+}
+
+.map-overlay[hidden] { display: none; }
+.map-overlay canvas {
+  display: block;
+  width: min(100%, 900px);
+  max-height: calc(100vh - 10rem);
+  margin: 0 auto 0.7rem;
+  border: 1px solid #8796a5;
+}
+.map-overlay button { margin: 0 0.35rem; padding: 0.55rem 0.8rem; }
+
 .osm-attribution {
   position: fixed;
   right: 0.5rem;

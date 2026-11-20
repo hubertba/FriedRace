@@ -1,10 +1,12 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import { vehicleById } from "../content/vehicles";
-import { loadProfile } from "../domain/persistence";
+import { loadProfile, saveProfile } from "../domain/persistence";
+import { startWaypointChallenge, updateWaypointChallenge, type WaypointChallenge } from "../domain/waypointChallenge";
 import { KeyboardInput } from "../input/KeyboardInput";
 import { VehicleRuntime } from "../simulation/VehicleRuntime";
 import { Hud } from "../ui/Hud";
+import { MapOverlay } from "../ui/MapOverlay";
 import { ChaseCamera } from "../world/ChaseCamera";
 import { createWorld, type WorldDefinition } from "../world/createWorld";
 
@@ -18,6 +20,7 @@ export class GameApp {
   private frame = 0;
   private previousTime = 0;
   private resizeHandler?: () => void;
+  private mapKeyHandler?: (event: KeyboardEvent) => void;
 
   constructor(private readonly root: HTMLElement) {
     this.canvas.dataset.gameCanvas = "";
@@ -30,7 +33,7 @@ export class GameApp {
   async start(): Promise<void> {
     this.root.replaceChildren(this.canvas, this.loadingStatus);
     await RAPIER.init();
-    const profile = loadProfile(localStorage);
+    let profile = loadProfile(localStorage);
     const activeVehicle = vehicleById(profile.activeVehicleId);
     if (!activeVehicle) throw new Error("Active vehicle is missing from catalog");
 
@@ -56,6 +59,26 @@ export class GameApp {
     hud.resetButton.addEventListener("click", () => this.vehicle?.reset());
     this.root.append(hud.element);
 
+    const mapOverlay = new MapOverlay(this.world.map, this.world.bounds);
+    this.root.append(mapOverlay.openButton, mapOverlay.element);
+    let waypoint: WaypointChallenge | undefined;
+    let waypointMarker: THREE.Mesh | undefined;
+    mapOverlay.onConfirm((target) => {
+      const position = this.vehicle!.position();
+      waypoint = startWaypointChallenge({ x: position.x, z: position.z }, target, performance.now());
+      if (waypointMarker) scene.remove(waypointMarker);
+      waypointMarker = new THREE.Mesh(
+        new THREE.CylinderGeometry(2, 2, 12, 16),
+        new THREE.MeshStandardMaterial({ color: 0xe53935, transparent: true, opacity: 0.75 }),
+      );
+      waypointMarker.position.set(target.x, 6, target.z);
+      scene.add(waypointMarker);
+    });
+    this.mapKeyHandler = (event) => {
+      if (event.code === "KeyM" && !event.repeat) mapOverlay.toggle();
+    };
+    addEventListener("keydown", this.mapKeyHandler);
+
     const attribution = document.createElement("a");
     attribution.className = "osm-attribution";
     attribution.href = this.world.map.attributionUrl;
@@ -78,12 +101,26 @@ export class GameApp {
     const tick = (time: number): void => {
       const dt = Math.min((time - this.previousTime) / 1000 || 1 / 60, 0.05);
       this.previousTime = time;
-      const driveInput = this.keyboard!.sample();
+      const driveInput = mapOverlay.isOpen ? { throttle: 0, brake: 0, steer: 0 } : this.keyboard!.sample();
       this.vehicle!.update(driveInput, dt);
       if (this.keyboard!.isPressed("KeyR")) this.vehicle!.reset();
       physics.step();
       chaseCamera.update(this.vehicle!.object, dt);
-      hud.render({ speedKph: this.vehicle!.speedKph(), money: profile.money });
+      let timerText = "Freie Fahrt";
+      if (waypoint) {
+        const position = this.vehicle!.position();
+        const update = updateWaypointChallenge(waypoint, { x: position.x, z: position.z }, time);
+        waypoint = update.challenge;
+        const remaining = Math.hypot(position.x - waypoint.target.x, position.z - waypoint.target.z);
+        timerText = update.completed ? `Ziel! +€${update.reward}` : `Wegpunkt ${Math.round(remaining)} m`;
+        if (update.reward > 0) {
+          profile = { ...profile, money: profile.money + update.reward };
+          saveProfile(localStorage, profile);
+          waypoint = undefined;
+          if (waypointMarker) scene.remove(waypointMarker);
+        }
+      }
+      hud.render({ speedKph: this.vehicle!.speedKph(), money: profile.money, timerText });
       this.renderer!.render(scene, camera);
       this.frame = requestAnimationFrame(tick);
     };
@@ -94,6 +131,7 @@ export class GameApp {
     cancelAnimationFrame(this.frame);
     this.keyboard?.dispose();
     if (this.resizeHandler) removeEventListener("resize", this.resizeHandler);
+    if (this.mapKeyHandler) removeEventListener("keydown", this.mapKeyHandler);
     this.world?.dispose();
     this.renderer?.dispose();
     this.root.replaceChildren();
