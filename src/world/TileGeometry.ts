@@ -9,7 +9,7 @@ export const buildRoadGeometry = (tile: MapTile): THREE.BufferGeometry => {
     const dx = end.x - start.x; const dz = end.z - start.z; const length = Math.hypot(dx, dz);
     if (!length) continue;
     const nx = (-dz / length) * road.width / 2; const nz = (dx / length) * road.width / 2;
-    vertices.push(start.x + nx, 0.04, start.z + nz, start.x - nx, 0.04, start.z - nz, end.x + nx, 0.04, end.z + nz, end.x + nx, 0.04, end.z + nz, start.x - nx, 0.04, start.z - nz, end.x - nx, 0.04, end.z - nz);
+    vertices.push(start.x + nx, 0.04, start.z + nz, end.x + nx, 0.04, end.z + nz, start.x - nx, 0.04, start.z - nz, end.x + nx, 0.04, end.z + nz, end.x - nx, 0.04, end.z - nz, start.x - nx, 0.04, start.z - nz);
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3));

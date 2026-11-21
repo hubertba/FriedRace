@@ -43,11 +43,12 @@ export const createWorld = async (scene: THREE.Scene, physics: RAPIER.World): Pr
   physics.createCollider(RAPIER.ColliderDesc.cuboid(1, wallHeight, depth / 2).setTranslation(bounds.minX, wallHeight, centerZ));
   physics.createCollider(RAPIER.ColliderDesc.cuboid(1, wallHeight, depth / 2).setTranslation(bounds.maxX, wallHeight, centerZ));
 
-  let warning = "";
+  let warning = ""; let garageBuildingId: string | undefined;
   const manager = new MapTileManager({ manifest, scene, loadTile: async (url) => { const tileResponse = await fetch(url); if (!tileResponse.ok) throw new Error(`${tileResponse.status}`); return tileResponse.json(); }, physics: { addBuildingCollider: (building) => {
     const xs = building.outer.map((point) => point.x); const zs = building.outer.map((point) => point.z);
-    const containsGarage = manifest.spawn.x >= Math.min(...xs) - 4 && manifest.spawn.x <= Math.max(...xs) + 4 && manifest.spawn.z >= Math.min(...zs) - 4 && manifest.spawn.z <= Math.max(...zs) + 4;
-    return containsGarage ? null : colliderForBuilding(physics, building);
+    const containsGarage = manifest.spawn.x >= Math.min(...xs) - 1 && manifest.spawn.x <= Math.max(...xs) + 1 && manifest.spawn.z >= Math.min(...zs) - 1 && manifest.spawn.z <= Math.max(...zs) + 1;
+    if (containsGarage && !garageBuildingId) garageBuildingId = building.id;
+    return building.id === garageBuildingId ? null : colliderForBuilding(physics, building);
   }, removeCollider: (handle) => physics.removeCollider(handle as RAPIER.Collider, true) }, onWarning: (message) => { warning = message; } });
   const spawn = new THREE.Vector3(manifest.spawn.x, 1.2, manifest.spawn.z);
   await manager.update(spawn);

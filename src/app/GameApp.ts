@@ -165,6 +165,7 @@ export class GameApp {
 
     if (import.meta.env.DEV && new URLSearchParams(location.search).get("e2e") === "1") {
       this.hasTestHooks = true;
+      let streamingTargetTile = "";
       (window as typeof window & { __friedRaceTest?: unknown }).__friedRaceTest = {
         profile: () => structuredClone(profile),
         setMoney: (money: number) => {
@@ -175,9 +176,13 @@ export class GameApp {
         teleportToGarage: () => this.vehicle!.teleport({ x: this.world!.spawn.x, z: this.world!.spawn.z }),
         teleportToRallyStart: () => this.vehicle!.teleport(rally.start),
         teleportToNeighborTile: () => {
-          const { grid } = this.world!.manifest;
-          this.vehicle!.teleport({ x: grid.minX + (grid.columns - 0.5) * grid.tileSize, z: grid.minZ + (grid.rows - 0.5) * grid.tileSize });
+          const { grid, tiles } = this.world!.manifest;
+          const spawnX = Math.floor((this.world!.spawn.x - grid.minX) / grid.tileSize); const spawnZ = Math.floor((this.world!.spawn.z - grid.minZ) / grid.tileSize);
+          const target = [...tiles].sort((a, b) => Math.hypot(b.x - spawnX, b.z - spawnZ) - Math.hypot(a.x - spawnX, a.z - spawnZ))[0]!;
+          streamingTargetTile = target.id;
+          this.vehicle!.teleport({ x: grid.minX + (target.x + 0.5) * grid.tileSize, z: grid.minZ + (target.z + 0.5) * grid.tileSize });
         },
+        targetMapTile: () => streamingTargetTile,
         startNearbyWaypoint: () => {
           const position = this.vehicle!.position();
           waypoint = startWaypointChallenge(

@@ -9,9 +9,12 @@ test("streams local road and building tiles without runtime OSM requests", async
   await expect.poll(async () => Number(await page.locator("body").getAttribute("data-loaded-buildings"))).toBeGreaterThan(0);
   const initialTiles = await page.locator("body").getAttribute("data-loaded-map-tiles");
   await page.evaluate(() => (window as any).__friedRaceTest.teleportToNeighborTile());
-  await expect.poll(() => page.locator("body").getAttribute("data-current-map-tile")).not.toBe("0-0");
+  const targetTile = await page.evaluate(() => (window as any).__friedRaceTest.targetMapTile());
+  await expect.poll(() => page.locator("body").getAttribute("data-current-map-tile")).toBe(targetTile);
+  await expect.poll(() => page.locator("body").getAttribute("data-loaded-map-tiles")).toContain(targetTile);
   expect(await page.locator("body").getAttribute("data-loaded-map-tiles")).not.toBe(initialTiles);
+  expect(requests.some((url) => url.includes(`/tile-${targetTile}.json`))).toBe(true);
   expect(requests.some((url) => /openstreetmap|overpass|osm\.org/i.test(url))).toBe(false);
   expect(requests.some((url) => url.includes("/map/manifest.json"))).toBe(true);
-  expect(requests.some((url) => url.includes("/map/tile-"))).toBe(true);
+  expect(requests.some((url) => url.includes("/map/generations/"))).toBe(true);
 });

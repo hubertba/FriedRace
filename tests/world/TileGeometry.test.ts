@@ -8,6 +8,8 @@ test("builds merged road and extruded building geometry", () => {
   const roads = buildRoadGeometry(tile);
   const buildings = buildBuildingGeometry(tile);
   expect(roads.getAttribute("position").count).toBeGreaterThan(0);
+  const normals = roads.getAttribute("normal");
+  expect(Array.from({ length: normals.count }, (_, index) => normals.getY(index)).every((value) => value > 0.9)).toBe(true);
   expect(buildings.getAttribute("position").count).toBeGreaterThan(0);
   expect(buildings.boundingBox?.max.y ?? 0).toBeGreaterThan(0);
   roads.dispose(); buildings.dispose();

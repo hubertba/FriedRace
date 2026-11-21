@@ -25,6 +25,9 @@ const pointSegmentDistance = (point: MapPoint, a: MapPoint, b: MapPoint): number
 export class MapTileManager {
   private readonly loaded = new Map<string, LoadedTile>();
   private readonly loading = new Set<string>();
+  private readonly failed = new Set<string>();
+  private desiredIds = new Set<string>();
+  private disposed = false;
   private readonly roadMaterial = new THREE.MeshStandardMaterial({ color: 0x4e5358, roughness: 0.95 });
   private readonly buildingMaterial = new THREE.MeshStandardMaterial({ color: 0xb7a58e, roughness: 0.9 });
   constructor(private readonly options: MapTileManagerOptions) {}
@@ -36,26 +39,33 @@ export class MapTileManager {
   }
 
   async update(position: MapPoint): Promise<void> {
+    if (this.disposed) return;
     const { grid } = this.options.manifest;
     const centerX = Math.floor((position.x - grid.minX) / grid.tileSize);
     const centerZ = Math.floor((position.z - grid.minZ) / grid.tileSize);
     const desired = this.options.manifest.tiles.filter((tile) => Math.abs(tile.x - centerX) <= 1 && Math.abs(tile.z - centerZ) <= 1);
-    const desiredIds = new Set(desired.map((tile) => tile.id));
-    for (const [id, loaded] of this.loaded) if (!desiredIds.has(id)) this.unload(id, loaded);
-    await Promise.all(desired.filter((descriptor) => !this.loaded.has(descriptor.id) && !this.loading.has(descriptor.id)).map(async (descriptor) => {
+    this.desiredIds = new Set(desired.map((tile) => tile.id));
+    for (const id of [...this.failed]) if (!this.desiredIds.has(id)) this.failed.delete(id);
+    for (const [id, loaded] of this.loaded) if (!this.desiredIds.has(id)) this.unload(id, loaded);
+    await Promise.all(desired.filter((descriptor) => !this.loaded.has(descriptor.id) && !this.loading.has(descriptor.id) && !this.failed.has(descriptor.id)).map(async (descriptor) => {
       this.loading.add(descriptor.id);
       try {
         const tile = validateMapTile(await this.options.loadTile(descriptor.url));
         if (!tile) throw new Error("invalid tile data");
+        if (this.disposed || !this.desiredIds.has(descriptor.id)) return;
         const group = new THREE.Group(); group.name = `map-tile-${tile.id}`;
         const roadGeometry = buildRoadGeometry(tile);
         const buildingGeometry = buildBuildingGeometry(tile);
         const roads = new THREE.Mesh(roadGeometry, this.roadMaterial); roads.receiveShadow = true; roads.name = "roads";
         const buildings = new THREE.Mesh(buildingGeometry, this.buildingMaterial); buildings.castShadow = true; buildings.receiveShadow = true; buildings.name = "buildings";
-        group.add(roads, buildings); this.options.scene.add(group);
-        const colliders = tile.buildings.map((building) => this.options.physics.addBuildingCollider(building)).filter((handle) => handle != null);
-        this.loaded.set(tile.id, { tile, group, colliders });
-      } catch (error) { this.options.onWarning?.(`Map tile ${descriptor.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
+        group.add(roads, buildings);
+        const colliders: unknown[] = [];
+        try {
+          for (const building of tile.buildings) { const handle = this.options.physics.addBuildingCollider(building); if (handle != null) colliders.push(handle); }
+          if (this.disposed || !this.desiredIds.has(descriptor.id)) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); group.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); }); return; }
+          this.options.scene.add(group); this.loaded.set(tile.id, { tile, group, colliders }); this.failed.delete(descriptor.id);
+        } catch (error) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); group.traverse((object) => { if (object instanceof THREE.Mesh) object.geometry.dispose(); }); throw error; }
+      } catch (error) { this.failed.add(descriptor.id); this.options.onWarning?.(`Map tile ${descriptor.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
       finally { this.loading.delete(descriptor.id); }
     }));
   }
@@ -68,6 +78,7 @@ export class MapTileManager {
   }
 
   dispose(): void {
+    this.disposed = true; this.desiredIds.clear();
     for (const [id, tile] of [...this.loaded]) this.unload(id, tile);
     this.roadMaterial.dispose(); this.buildingMaterial.dispose();
   }
