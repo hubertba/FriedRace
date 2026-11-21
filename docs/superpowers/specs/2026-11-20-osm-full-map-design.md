@@ -2,7 +2,7 @@
 
 ## Intent
 
-Replace the reduced main-road map with a locally bundled, tiled OpenStreetMap world containing all normal drivable streets and all available building footprints across Unterwart, Oberwart, Pinkafeld, Oberschützen, Großpetersdorf, and the connecting region.
+Replace the reduced regional map in the first expansion phase with a locally bundled, tiled OpenStreetMap world containing all normal drivable streets and all available building footprints in Unterwart. The tile format remains extensible so Oberwart, Pinkafeld, Oberschützen, and Großpetersdorf can be added later without another runtime redesign.
 
 ## Goals
 
@@ -13,7 +13,8 @@ Replace the reduced main-road map with a locally bundled, tiled OpenStreetMap wo
 - Load and unload nearby tiles while driving.
 - Render roads as surfaces and buildings as simple extruded low-poly geometry.
 - Give nearby buildings approximate static collision while keeping distant/unloaded buildings cost-free.
-- Keep an overview road network and five town labels for the map overlay.
+- Keep an overview road network and the Unterwart town label for the map overlay.
+- Place the garage and player spawn at Dr.-Galambos-Gasse 12, 7502 Unterwart, using the OSM/Nominatim result `47.2571447, 16.2342699` as the authoritative source coordinate.
 - Keep runtime fully offline and display the existing OpenStreetMap attribution.
 - Preserve the last valid generated map if any download, conversion, or validation step fails.
 
@@ -26,7 +27,7 @@ Replace the reduced main-road map with a locally bundled, tiled OpenStreetMap wo
 
 ## Approach
 
-The importer divides the existing regional bounding box into a fixed grid and queries Overpass per source tile. This avoids one oversized query and allows retries. It converts OSM coordinates to the existing compressed local coordinate system, resolves building way and relation polygons, and writes a temporary output directory containing a manifest and tile JSON files. Only after every tile validates does it atomically replace `public/map/`.
+The importer divides a compact bounding box around Unterwart into a fixed grid and queries Overpass per source tile. This avoids one oversized query and allows retries. It converts OSM coordinates to local game coordinates centered on Dr.-Galambos-Gasse 12, resolves building way and relation polygons, and writes a temporary output directory containing a manifest and tile JSON files. Only after every tile validates does it atomically replace `public/map/`. Later phases may expand the bounding box while preserving the same format.
 
 The runtime loads the manifest once. A `MapTileManager` keeps the current tile and neighboring tiles loaded around the vehicle. Each loaded tile owns one merged road mesh and one merged building mesh. Tiles near the player also own approximate Rapier building colliders. Unloading a tile removes and disposes its meshes and colliders.
 
@@ -34,7 +35,7 @@ The map overlay uses a simplified overview road network from the manifest instea
 
 ## Data Model
 
-`manifest.json` contains version, attribution, compression/projection metadata, world bounds, tile size, tile descriptors, town labels, and simplified overview roads.
+`manifest.json` contains version, attribution, compression/projection metadata, world bounds, tile size, tile descriptors, town labels, simplified overview roads, and the projected spawn/garage position derived from Dr.-Galambos-Gasse 12.
 
 Each tile contains:
 

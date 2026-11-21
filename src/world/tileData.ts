@@ -6,7 +6,7 @@ export interface ImportedBuilding { id: string; name?: string; outer: MapPoint[]
 export interface ConvertedBatch { roads: TiledRoad[]; buildings: ImportedBuilding[]; towns: Array<MapPoint & { name: string }>; }
 export interface TileGrid { minX: number; minZ: number; tileSize: number; columns: number; rows: number; }
 export interface MapTile { version: 2; id: string; x: number; z: number; bounds: { minX: number; maxX: number; minZ: number; maxZ: number }; roads: TiledRoad[]; buildings: ImportedBuilding[]; }
-export interface MapManifest { version: 2; attribution: string; attributionUrl: string; grid: TileGrid; tiles: Array<{ id: string; x: number; z: number; url: string }>; towns: ConvertedBatch["towns"]; overviewRoads: TiledRoad[]; }
+export interface MapManifest { version: 2; attribution: string; attributionUrl: string; grid: TileGrid; tiles: Array<{ id: string; x: number; z: number; url: string }>; towns: ConvertedBatch["towns"]; spawn: MapPoint; overviewRoads: TiledRoad[]; }
 
 const ROAD_CLASSES = new Set(["motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service"]);
 const isNode = (value: unknown): value is OsmNode => (value as OsmNode)?.type === "node" && Number.isFinite((value as OsmNode).lat) && Number.isFinite((value as OsmNode).lon);
@@ -98,9 +98,9 @@ export const assignFeaturesToTiles = (batch: ConvertedBatch, grid: TileGrid): Ma
   return tiles;
 };
 
-export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"]): MapManifest => {
+export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"], spawn: MapPoint = { x: 0, z: 0 }): MapManifest => {
   const roads = [...new Map(tiles.flatMap((tile) => tile.roads).map((road) => [road.id, road])).values()];
-  return { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", grid, tiles: tiles.map((tile) => ({ id: tile.id, x: tile.x, z: tile.z, url: `/map/tile-${tile.id}.json` })), towns, overviewRoads: roads.map((road) => ({ ...road, points: road.points.filter((_, index) => index === 0 || index === road.points.length - 1 || index % 4 === 0) })) };
+  return { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", grid, tiles: tiles.map((tile) => ({ id: tile.id, x: tile.x, z: tile.z, url: `/map/tile-${tile.id}.json` })), towns, spawn, overviewRoads: roads.map((road) => ({ ...road, points: road.points.filter((_, index) => index === 0 || index === road.points.length - 1 || index % 4 === 0) })) };
 };
 
 export const validateMapTile = (value: unknown): MapTile | null => {
@@ -109,5 +109,5 @@ export const validateMapTile = (value: unknown): MapTile | null => {
 };
 export const validateMapManifest = (value: unknown): MapManifest | null => {
   const manifest = value as MapManifest;
-  return manifest?.version === 2 && Array.isArray(manifest.tiles) && Array.isArray(manifest.overviewRoads) && Array.isArray(manifest.towns) ? manifest : null;
+  return manifest?.version === 2 && Array.isArray(manifest.tiles) && Array.isArray(manifest.overviewRoads) && Array.isArray(manifest.towns) && Number.isFinite(manifest.spawn?.x) && Number.isFinite(manifest.spawn?.z) ? manifest : null;
 };

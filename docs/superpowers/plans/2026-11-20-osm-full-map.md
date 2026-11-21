@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Replace the reduced single-file map with an offline tiled OSM world containing all normal drivable streets and available building footprints for the five-town region.
+**Goal:** Replace the reduced single-file map with an offline tiled OSM world containing all normal drivable streets and available building footprints in Unterwart, starting at Dr.-Galambos-Gasse 12.
 
 **Architecture:** A development-time importer queries a fixed geographic grid, converts roads and building polygons into minified local tile JSON, and atomically publishes a manifest plus tiles under `public/map/`. At runtime a tile manager streams a 3×3 neighborhood, owns merged Three.js road/building geometry, and creates removable approximate Rapier building colliders.
 
@@ -20,6 +20,8 @@
 - Load at most a 3×3 tile neighborhood during normal gameplay.
 - Merge render geometry per tile and remove meshes and colliders when a tile unloads.
 - Building collisions are approximate and exist only for loaded nearby buildings.
+- The authoritative spawn source is Dr.-Galambos-Gasse 12 at latitude `47.2571447`, longitude `16.2342699`; the manifest stores its projected game position.
+- Phase 1 imports only Unterwart while preserving an expandable tile format for later towns.
 
 ## Review Focus
 
@@ -94,7 +96,7 @@ Expected: FAIL because the current importer writes one file and has no grid publ
 
 - [ ] **Step 3: Implement multi-query import and atomic directory swap**
 
-Query a fixed grid over `47.15,16.00,47.45,16.45`, include required node recursion, limit concurrency to two requests, retry alternate endpoints, deduplicate OSM IDs across overlapping source batches, generate `public/map/manifest.json` and `public/map/tile-<x>-<z>.json` in a sibling temporary directory, validate all outputs, then rename. Keep `src/content/map/region.json` only as a temporary compatibility fallback until Task 4.
+Query a 3×3 source grid over the Unterwart phase-1 bounds `47.235,16.205,47.280,16.265`, include required node recursion, limit concurrency to two requests, retry alternate endpoints, deduplicate OSM IDs across overlapping source batches, project the Dr.-Galambos-Gasse 12 coordinate into `manifest.spawn`, generate `public/map/manifest.json` and `public/map/tile-<x>-<z>.json` in a sibling temporary directory, validate all outputs, then rename. Keep `src/content/map/region.json` only as a temporary compatibility fallback until Task 4.
 
 - [ ] **Step 4: Verify importer tests**
 
@@ -200,11 +202,11 @@ git commit -m "feat: load nearby OSM streets and buildings"
 
 **Interfaces:**
 - Consumes: completed importer and runtime.
-- Produces: checked-in offline regional map assets and documented regeneration workflow.
+- Produces: checked-in offline Unterwart map assets, Dr.-Galambos-Gasse 12 spawn data, and documented regeneration workflow.
 
 - [ ] **Step 1: Add failing release assertions**
 
-Assert the checked-in manifest validates, all five town labels exist, residential/service roads and buildings are nonzero, every listed tile file exists, total runtime tile count is bounded by the configured grid, and the MVP browser flow still completes with streamed tiles.
+Assert the checked-in manifest validates, the Unterwart label and projected Dr.-Galambos-Gasse 12 spawn exist, residential/service roads and buildings are nonzero, every listed tile file exists, total runtime tile count is bounded by the configured grid, and the MVP browser flow still completes with streamed tiles.
 
 - [ ] **Step 2: Verify RED against the old bundled map**
 
