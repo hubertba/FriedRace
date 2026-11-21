@@ -12,7 +12,9 @@ test("streams local road and building tiles without runtime OSM requests", async
   const targetTile = await page.evaluate(() => (window as any).__friedRaceTest.targetMapTile());
   await expect.poll(() => page.locator("body").getAttribute("data-current-map-tile")).toBe(targetTile);
   await expect.poll(() => page.locator("body").getAttribute("data-loaded-map-tiles")).toContain(targetTile);
-  expect(await page.locator("body").getAttribute("data-loaded-map-tiles")).not.toBe(initialTiles);
+  const finalTiles = await page.locator("body").getAttribute("data-loaded-map-tiles");
+  expect(finalTiles).not.toBe(initialTiles);
+  expect((initialTiles ?? "").split(",").some((id) => (finalTiles ?? "").split(",").includes(id))).toBe(false);
   expect(requests.some((url) => url.includes(`/tile-${targetTile}.json`))).toBe(true);
   expect(requests.some((url) => /openstreetmap|overpass|osm\.org/i.test(url))).toBe(false);
   expect(requests.some((url) => url.includes("/map/manifest.json"))).toBe(true);

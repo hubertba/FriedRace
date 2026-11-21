@@ -51,6 +51,7 @@ export const parseOsmXml = (xml: string): OverpassData => {
   const parsedDocument = parser.parse(xml);
   if (!parsedDocument?.osm || typeof parsedDocument.osm !== "object") throw new Error("Invalid OSM XML response");
   const parsed = parsedDocument.osm;
+  if (parsed.error != null || parsed.remark != null) throw new Error(`OSM XML error: ${String(parsed.error ?? parsed.remark)}`);
   const tags = (items: Array<{ k: string; v: string }> = []): Record<string, string> => Object.fromEntries(items.map((item) => [item.k, item.v]));
   const elements: OverpassData["elements"] = [];
   for (const node of parsed.node ?? []) elements.push({ type: "node", id: Number(node.id), lat: Number(node.lat), lon: Number(node.lon), tags: tags(node.tag) });
@@ -77,6 +78,8 @@ export const fetchGridBatches = async (cells: SourceCell[], fetcher: typeof fetc
 
 export const publishMapDirectory = async (outputDir: string, manifest: MapManifest, tiles: MapTile[]): Promise<void> => {
   if (!validateMapManifest(manifest) || tiles.some((tile) => !validateMapTile(tile))) throw new Error("Invalid generated map output");
+  const descriptorKeys = manifest.tiles.map((tile) => `${tile.id}:${tile.x}:${tile.z}`).sort(); const tileKeys = tiles.map((tile) => `${tile.id}:${tile.x}:${tile.z}`).sort();
+  if (descriptorKeys.length !== tileKeys.length || descriptorKeys.some((key, index) => key !== tileKeys[index])) throw new Error("Manifest and tile files do not correspond");
   const generation = createHash("sha256").update(JSON.stringify(tiles)).digest("hex").slice(0, 12);
   const generationDir = resolve(outputDir, "generations", generation);
   const temporaryGeneration = `${generationDir}.tmp-${process.pid}`;
@@ -124,7 +127,7 @@ export const importUnterwart = async (outputDir: string, fetcher: typeof fetch =
   const maxZ = Math.ceil(Math.max(...allPoints.map((point) => point.z)) / tileSize) * tileSize;
   const grid: TileGrid = { minX, minZ, tileSize, columns: Math.max(1, Math.ceil((maxX - minX) / tileSize)), rows: Math.max(1, Math.ceil((maxZ - minZ) / tileSize)) };
   const tiles = assignFeaturesToTiles(converted, grid).filter((tile) => tile.roads.length || tile.buildings.length);
-  const manifest = buildManifest(tiles, grid, converted.towns, { x: 0, z: 0 }, PHASE_ONE_PROJECTION);
+  const manifest = buildManifest(tiles, grid, converted.towns, { x: 0, z: 0 }, PHASE_ONE_PROJECTION, converted.roads);
   await publishMapDirectory(outputDir, manifest, tiles);
   console.log(`Published ${tiles.length} Unterwart map tiles with ${converted.roads.length} roads and ${converted.buildings.length} buildings.`);
 };

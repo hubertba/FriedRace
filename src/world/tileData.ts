@@ -13,6 +13,19 @@ const isNode = (value: unknown): value is OsmNode => (value as OsmNode)?.type ==
 const isWay = (value: unknown): value is OsmWay => (value as OsmWay)?.type === "way" && Array.isArray((value as OsmWay).nodes);
 const isRelation = (value: unknown): value is OsmRelation => (value as OsmRelation)?.type === "relation" && Array.isArray((value as OsmRelation).members);
 const round = (value: number): number => Math.round(value * 1000) / 1000;
+const orientation = (a: MapPoint, b: MapPoint, c: MapPoint): number => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+const segmentsIntersect = (a: MapPoint, b: MapPoint, c: MapPoint, d: MapPoint): boolean => {
+  const abC = orientation(a, b, c); const abD = orientation(a, b, d); const cdA = orientation(c, d, a); const cdB = orientation(c, d, b);
+  return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
+};
+const isSimpleRing = (ring: MapPoint[]): boolean => {
+  const edges = ring.length - 1;
+  for (let first = 0; first < edges; first += 1) for (let second = first + 1; second < edges; second += 1) {
+    if (Math.abs(first - second) <= 1 || (first === 0 && second === edges - 1)) continue;
+    if (segmentsIntersect(ring[first]!, ring[first + 1]!, ring[second]!, ring[second + 1]!)) return false;
+  }
+  return true;
+};
 const closeRing = (points: MapPoint[]): MapPoint[] => {
   if (points.length < 3) throw new Error("Degenerate building polygon");
   const ring = points.map((point) => ({ x: round(point.x), z: round(point.z) }));
@@ -21,7 +34,7 @@ const closeRing = (points: MapPoint[]): MapPoint[] => {
   if (first.x !== last.x || first.z !== last.z) ring.push({ ...first });
   if (ring.length < 4) throw new Error("Degenerate building polygon");
   const area = Math.abs(ring.slice(0, -1).reduce((sum, point, index) => { const next = ring[index + 1]!; return sum + point.x * next.z - next.x * point.z; }, 0) / 2);
-  if (area < 0.01) throw new Error("Degenerate building polygon");
+  if (area < 0.01 || !isSimpleRing(ring)) throw new Error("Degenerate building polygon");
   return ring;
 };
 const pointInRing = (point: MapPoint, ring: MapPoint[]): boolean => {
@@ -31,6 +44,11 @@ const pointInRing = (point: MapPoint, ring: MapPoint[]): boolean => {
     if ((a.z > point.z) !== (b.z > point.z) && point.x < (b.x - a.x) * (point.z - a.z) / (b.z - a.z) + a.x) inside = !inside;
   }
   return inside;
+};
+const holeFitsOuter = (hole: MapPoint[], outer: MapPoint[]): boolean => {
+  if (!hole.slice(0, -1).every((point) => pointInRing(point, outer))) return false;
+  for (let inner = 0; inner < hole.length - 1; inner += 1) for (let edge = 0; edge < outer.length - 1; edge += 1) if (segmentsIntersect(hole[inner]!, hole[inner + 1]!, outer[edge]!, outer[edge + 1]!)) return false;
+  return true;
 };
 const fallbackHeight = (id: number): number => 6 + Math.abs(id % 4) * 3;
 const buildingHeight = (tags: Record<string, string> | undefined, id: number): { height: number; levels?: number } => {
@@ -70,11 +88,7 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
     points: pointsForWay(way),
   })).filter((road) => road.points.length >= 2);
 
-  const relationMemberIds = new Set(relations.filter((relation) => relation.tags?.type === "multipolygon" && relation.tags?.building && relation.tags.building !== "no").flatMap((relation) => relation.members.filter((member) => member.type === "way").map((member) => member.ref)));
-  const standaloneBuildings = ways.filter((way) => way.tags?.building && way.tags.building !== "no" && !relationMemberIds.has(way.id)).flatMap((way): ImportedBuilding[] => {
-    try { return [{ id: `way/${way.id}`, name: way.tags?.name, outer: closeRing(pointsForWay(way)), inners: [], ...buildingHeight(way.tags, way.id) }]; }
-    catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
-  });
+  const representedOuterIds = new Set<number>();
   const relationBuildings = relations.filter((relation) => relation.tags?.type === "multipolygon" && relation.tags?.building && relation.tags.building !== "no").flatMap((relation): ImportedBuilding[] => {
     for (const member of relation.members.filter((item) => item.type === "way")) if (!wayById.has(member.ref)) throw new Error(`Missing way ${member.ref}`);
     const rings = (role: string): MapPoint[][] => {
@@ -99,8 +113,13 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
     try {
       const outers = rings("outer"); const inners = rings("inner");
       if (!outers.length) return [];
-      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: inners.filter((inner) => pointInRing(inner[0]!, outer)), ...buildingHeight(relation.tags, relation.id) }));
+      relation.members.filter((member) => member.type === "way" && member.role === "outer").forEach((member) => representedOuterIds.add(member.ref));
+      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: inners.filter((inner) => holeFitsOuter(inner, outer)), ...buildingHeight(relation.tags, relation.id) }));
     } catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
+  });
+  const standaloneBuildings = ways.filter((way) => way.tags?.building && way.tags.building !== "no" && !representedOuterIds.has(way.id)).flatMap((way): ImportedBuilding[] => {
+    try { return [{ id: `way/${way.id}`, name: way.tags?.name, outer: closeRing(pointsForWay(way)), inners: [], ...buildingHeight(way.tags, way.id) }]; }
+    catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
   });
   const towns = nodes.filter((node) => node.tags?.place && node.tags?.name).map((node) => ({ name: node.tags!.name!, ...project(node.id) }));
   return { roads, buildings: [...standaloneBuildings, ...relationBuildings], towns };
@@ -139,8 +158,8 @@ export const assignFeaturesToTiles = (batch: ConvertedBatch, grid: TileGrid): Ma
   return tiles;
 };
 
-export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"], spawn: MapPoint = { x: 0, z: 0 }, projection?: ProjectionConfig): MapManifest => {
-  const roads = [...new Map(tiles.flatMap((tile) => tile.roads).map((road) => [road.id, road])).values()];
+export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"], spawn: MapPoint = { x: 0, z: 0 }, projection?: ProjectionConfig, sourceRoads?: TiledRoad[]): MapManifest => {
+  const roads = sourceRoads ?? [...new Map(tiles.flatMap((tile) => tile.roads).map((road) => [road.id, road])).values()];
   return { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", projection, grid, tiles: tiles.map((tile) => ({ id: tile.id, x: tile.x, z: tile.z, url: `/map/tile-${tile.id}.json` })), towns, spawn, overviewRoads: roads.map((road) => ({ ...road, points: road.points.filter((_, index) => index === 0 || index === road.points.length - 1 || index % 4 === 0) })) };
 };
 

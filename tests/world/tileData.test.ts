@@ -33,6 +33,21 @@ test("joins split relation ways and preserves multiple outer parts", () => {
   expect(buildings.every((building) => building.outer.at(0)?.x === building.outer.at(-1)?.x && building.outer.at(0)?.z === building.outer.at(-1)?.z)).toBe(true);
 });
 
+test("rejects self-crossing footprints and holes that leave their outer ring", () => {
+  const elements: any[] = [
+    {type:"node",id:1,lat:47.2,lon:16.1},{type:"node",id:2,lat:47.21,lon:16.11},{type:"node",id:3,lat:47.21,lon:16.1},{type:"node",id:4,lat:47.2,lon:16.105},
+    {type:"way",id:30,nodes:[1,2,3,4,1],tags:{building:"yes"}},
+    {type:"node",id:10,lat:47.2,lon:16.2},{type:"node",id:11,lat:47.2,lon:16.22},{type:"node",id:12,lat:47.22,lon:16.22},{type:"node",id:13,lat:47.22,lon:16.2},
+    {type:"node",id:14,lat:47.205,lon:16.205},{type:"node",id:15,lat:47.205,lon:16.23},{type:"node",id:16,lat:47.21,lon:16.205},
+    {type:"way",id:31,nodes:[10,11,12,13,10],tags:{}},{type:"way",id:32,nodes:[14,15,16,14],tags:{building:"yes"}},
+    {type:"relation",id:33,members:[{type:"way",ref:31,role:"outer"},{type:"way",ref:32,role:"inner"}],tags:{type:"multipolygon",building:"yes"}},
+  ];
+  const buildings = convertOsmBatch({elements} as any, projection).buildings;
+  expect(buildings.some((building) => building.id === "way/30")).toBe(false);
+  expect(buildings.some((building) => building.id === "way/32")).toBe(true);
+  expect(buildings.find((building) => building.id.startsWith("relation/33/"))?.inners).toHaveLength(0);
+});
+
 test("rejects missing referenced geometry", () => {
   const broken = structuredClone(fixture);
   const way = broken.elements.find((element) => element.type === "way" && element.id === 100)! as any;

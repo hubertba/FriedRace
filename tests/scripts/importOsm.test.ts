@@ -26,6 +26,7 @@ test("parses OSM XML fallback data into nodes, ways, and relations", () => {
 });
 
 test("rejects successful-looking partial or invalid source responses", async () => {
+  expect(() => parseOsmXml('<osm version="0.6"><error>read failed</error></osm>')).toThrow();
   const cells = buildSourceGrid({ south: 0, west: 0, north: 1, east: 1 }, 1, 1);
   const fetcher: typeof fetch = async (input) => String(input).includes("api.openstreetmap.org")
     ? new Response("<html>error</html>", { status: 200 })
@@ -45,12 +46,16 @@ test("fetches every grid cell with source fallback", async () => {
   expect(calls).toBe(4);
 });
 
-test("preserves the published manifest when any source cell fails", async () => {
+test("preserves the published manifest when one XML cell fails after eight valid cells", async () => {
   const root = await mkdtemp(join(tmpdir(), "fried-map-fail-")); dirs.push(root);
   const output = join(root, "map"); await mkdir(output); await writeFile(join(output, "manifest.json"), "last-valid", "utf8");
-  const fetcher: typeof fetch = async (input) => String(input).includes("api.openstreetmap.org")
-    ? new Response("<html>error</html>", { status: 200 })
-    : Response.json({ remark: "runtime error: timed out", elements: [] });
+  let calls = 0;
+  const fetcher: typeof fetch = async (input) => {
+    calls += 1;
+    if (String(input).includes("api.openstreetmap.org") && calls <= 8) return new Response('<osm version="0.6"></osm>', { status: 200 });
+    if (String(input).includes("api.openstreetmap.org")) return new Response('<osm version="0.6"><error>read failed</error></osm>', { status: 200 });
+    return Response.json({ remark: "runtime error: timed out", elements: [] });
+  };
   await expect(importUnterwart(output, fetcher)).rejects.toThrow();
   expect(await readFile(join(output, "manifest.json"), "utf8")).toBe("last-valid");
 });
@@ -67,4 +72,13 @@ test("publishes minified map tiles atomically", async () => {
   expect(published.tiles[0].url).toMatch(/^\/map\/generations\/[a-f0-9]+\/tile-0-0.json$/);
   expect(await readFile(join(root, published.tiles[0].url), "utf8")).not.toContain("\n  ");
   expect(await readFile(join(output, "old.txt"), "utf8")).toBe("keep");
+});
+
+test("refuses to switch a manifest whose tile descriptors are incomplete", async () => {
+  const root = await mkdtemp(join(tmpdir(), "fried-map-mismatch-")); dirs.push(root);
+  const output = join(root, "map"); await mkdir(output); await writeFile(join(output, "manifest.json"), "last-valid", "utf8");
+  const tile: MapTile = { version: 2, id: "0-0", x: 0, z: 0, bounds: { minX: 0, maxX: 100, minZ: 0, maxZ: 100 }, roads: [], buildings: [] };
+  const manifest: MapManifest = { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", grid: { minX: 0, minZ: 0, tileSize: 100, columns: 2, rows: 1 }, tiles: [{ id: "0-0", x: 0, z: 0, url: "/map/tile-0-0.json" }, { id: "1-0", x: 1, z: 0, url: "/map/tile-1-0.json" }], towns: [], spawn: { x: 0, z: 0 }, overviewRoads: [] };
+  await expect(publishMapDirectory(output, manifest, [tile])).rejects.toThrow(/correspond/);
+  expect(await readFile(join(output, "manifest.json"), "utf8")).toBe("last-valid");
 });
