@@ -1,0 +1,1 @@
+{"version":2,"id":"0-2","x":0,"z":2,"bounds":{"minX":-200,"maxX":-100,"minZ":0,"maxZ":100},"roads":[{"id":"road-0-2","name":"Teststraße","highway":"residential","width":7,"points":[{"x":-200,"z":50},{"x":-100,"z":50}]}],"buildings":[{"id":"building-0-2","outer":[{"x":-180,"z":20},{"x":-165,"z":20},{"x":-165,"z":35},{"x":-180,"z":35},{"x":-180,"z":20}],"inners":[],"height":9}]}

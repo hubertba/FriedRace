@@ -13,7 +13,7 @@ interface OsmNode { type: "node"; id: number; lat: number; lon: number; tags?: R
 interface OsmWay { type: "way"; id: number; nodes: number[]; tags?: Record<string, string>; }
 export interface OverpassResponse { elements: Array<OsmNode | OsmWay | Record<string, unknown>>; }
 export interface MapPoint { x: number; z: number; }
-export interface ImportedRoad { id: number; name: string; highway: string; points: MapPoint[]; }
+export interface ImportedRoad { id: number | string; name: string; highway: string; points: MapPoint[]; }
 export interface ImportedTown extends MapPoint { name: string; }
 export interface ImportedMap {
   version: 1;

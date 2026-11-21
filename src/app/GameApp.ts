@@ -55,7 +55,8 @@ export class GameApp {
     const physics = new RAPIER.World({ x: 0, y: -20, z: 0 });
     physics.timestep = FIXED_STEP;
     this.physics = physics;
-    this.world = createWorld(scene, physics);
+    this.world = await createWorld(scene, physics);
+    await this.world.updateMap(this.world.spawn);
     const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 2500);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -173,6 +174,10 @@ export class GameApp {
         },
         teleportToGarage: () => this.vehicle!.teleport({ x: this.world!.spawn.x, z: this.world!.spawn.z }),
         teleportToRallyStart: () => this.vehicle!.teleport(rally.start),
+        teleportToNeighborTile: () => {
+          const { grid } = this.world!.manifest;
+          this.vehicle!.teleport({ x: grid.minX + (grid.columns - 0.5) * grid.tileSize, z: grid.minZ + (grid.rows - 0.5) * grid.tileSize });
+        },
         startNearbyWaypoint: () => {
           const position = this.vehicle!.position();
           waypoint = startWaypointChallenge(
@@ -243,6 +248,7 @@ export class GameApp {
         currentPosition = this.vehicle!.position();
       }
       mapOverlay.setPlayerPosition({ x: currentPosition.x, z: currentPosition.z });
+      void this.world!.updateMap({ x: currentPosition.x, z: currentPosition.z });
 
       const garageDistance = currentPosition.distanceTo(this.world!.spawn);
       const hasEvent = Boolean(waypoint || rallyRun);
@@ -298,6 +304,7 @@ export class GameApp {
         }
       }
       if (time < statusUntil) timerText = statusMessage;
+      if (this.world!.mapWarning()) timerText += " · Kartenteil konnte nicht geladen werden";
       if (saveWarning) timerText += " · Speichern nicht verfügbar";
       hud.render({ speedKph: this.vehicle!.speedKph(), money: profile.money, timerText, activeVehicle: currentVehicle.name });
       this.renderer!.render(scene, camera);

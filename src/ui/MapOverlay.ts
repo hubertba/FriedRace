@@ -1,6 +1,8 @@
-import type { ImportedMap } from "../world/mapData";
+import type { ImportedTown, MapPoint } from "../world/mapData";
 import type { WorldBounds } from "../world/worldBounds";
 import { isValidWaypoint, type Point2 } from "../domain/waypointChallenge";
+
+interface MapOverlayData { roads: Array<{ points: MapPoint[] }>; towns: ImportedTown[]; }
 
 export class MapOverlay {
   readonly element = document.createElement("div");
@@ -11,7 +13,7 @@ export class MapOverlay {
   private playerPosition?: Point2;
   private confirmHandler?: (point: Point2) => void;
 
-  constructor(private readonly map: ImportedMap, private readonly bounds: WorldBounds) {
+  constructor(private readonly map: MapOverlayData, private readonly bounds: WorldBounds) {
     this.element.className = "map-overlay";
     this.element.hidden = true;
     this.openButton.className = "map-button";

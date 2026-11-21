@@ -24,10 +24,16 @@ const pointSegmentDistance = (point: MapPoint, a: MapPoint, b: MapPoint): number
 
 export class MapTileManager {
   private readonly loaded = new Map<string, LoadedTile>();
+  private readonly loading = new Set<string>();
   private readonly roadMaterial = new THREE.MeshStandardMaterial({ color: 0x4e5358, roughness: 0.95 });
   private readonly buildingMaterial = new THREE.MeshStandardMaterial({ color: 0xb7a58e, roughness: 0.9 });
   constructor(private readonly options: MapTileManagerOptions) {}
   get loadedTileIds(): string[] { return [...this.loaded.keys()]; }
+  get loadedBuildingCount(): number { return [...this.loaded.values()].reduce((sum, entry) => sum + entry.tile.buildings.length, 0); }
+  tileIdAt(position: MapPoint): string {
+    const { grid } = this.options.manifest;
+    return `${Math.floor((position.x - grid.minX) / grid.tileSize)}-${Math.floor((position.z - grid.minZ) / grid.tileSize)}`;
+  }
 
   async update(position: MapPoint): Promise<void> {
     const { grid } = this.options.manifest;
@@ -36,7 +42,8 @@ export class MapTileManager {
     const desired = this.options.manifest.tiles.filter((tile) => Math.abs(tile.x - centerX) <= 1 && Math.abs(tile.z - centerZ) <= 1);
     const desiredIds = new Set(desired.map((tile) => tile.id));
     for (const [id, loaded] of this.loaded) if (!desiredIds.has(id)) this.unload(id, loaded);
-    await Promise.all(desired.filter((descriptor) => !this.loaded.has(descriptor.id)).map(async (descriptor) => {
+    await Promise.all(desired.filter((descriptor) => !this.loaded.has(descriptor.id) && !this.loading.has(descriptor.id)).map(async (descriptor) => {
+      this.loading.add(descriptor.id);
       try {
         const tile = validateMapTile(await this.options.loadTile(descriptor.url));
         if (!tile) throw new Error("invalid tile data");
@@ -49,6 +56,7 @@ export class MapTileManager {
         const colliders = tile.buildings.map((building) => this.options.physics.addBuildingCollider(building));
         this.loaded.set(tile.id, { tile, group, colliders });
       } catch (error) { this.options.onWarning?.(`Map tile ${descriptor.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
+      finally { this.loading.delete(descriptor.id); }
     }));
   }
 
