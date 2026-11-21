@@ -14,9 +14,11 @@ const isWay = (value: unknown): value is OsmWay => (value as OsmWay)?.type === "
 const isRelation = (value: unknown): value is OsmRelation => (value as OsmRelation)?.type === "relation" && Array.isArray((value as OsmRelation).members);
 const round = (value: number): number => Math.round(value * 1000) / 1000;
 const orientation = (a: MapPoint, b: MapPoint, c: MapPoint): number => (b.x - a.x) * (c.z - a.z) - (b.z - a.z) * (c.x - a.x);
+const onSegment = (a: MapPoint, b: MapPoint, point: MapPoint): boolean => Math.abs(orientation(a, b, point)) < 1e-6 && point.x >= Math.min(a.x, b.x) && point.x <= Math.max(a.x, b.x) && point.z >= Math.min(a.z, b.z) && point.z <= Math.max(a.z, b.z);
 const segmentsIntersect = (a: MapPoint, b: MapPoint, c: MapPoint, d: MapPoint): boolean => {
   const abC = orientation(a, b, c); const abD = orientation(a, b, d); const cdA = orientation(c, d, a); const cdB = orientation(c, d, b);
-  return ((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0));
+  if (((abC > 0 && abD < 0) || (abC < 0 && abD > 0)) && ((cdA > 0 && cdB < 0) || (cdA < 0 && cdB > 0))) return true;
+  return onSegment(a, b, c) || onSegment(a, b, d) || onSegment(c, d, a) || onSegment(c, d, b);
 };
 const isSimpleRing = (ring: MapPoint[]): boolean => {
   const edges = ring.length - 1;
@@ -33,8 +35,9 @@ const closeRing = (points: MapPoint[]): MapPoint[] => {
   const last = ring.at(-1)!;
   if (first.x !== last.x || first.z !== last.z) ring.push({ ...first });
   if (ring.length < 4) throw new Error("Degenerate building polygon");
+  const uniqueVertices = new Set(ring.slice(0, -1).map((point) => `${point.x}:${point.z}`));
   const area = Math.abs(ring.slice(0, -1).reduce((sum, point, index) => { const next = ring[index + 1]!; return sum + point.x * next.z - next.x * point.z; }, 0) / 2);
-  if (area < 0.01 || !isSimpleRing(ring)) throw new Error("Degenerate building polygon");
+  if (uniqueVertices.size !== ring.length - 1 || area < 0.01 || !isSimpleRing(ring)) throw new Error("Degenerate building polygon");
   return ring;
 };
 const pointInRing = (point: MapPoint, ring: MapPoint[]): boolean => {
@@ -45,10 +48,19 @@ const pointInRing = (point: MapPoint, ring: MapPoint[]): boolean => {
   }
   return inside;
 };
-const holeFitsOuter = (hole: MapPoint[], outer: MapPoint[]): boolean => {
-  if (!hole.slice(0, -1).every((point) => pointInRing(point, outer))) return false;
-  for (let inner = 0; inner < hole.length - 1; inner += 1) for (let edge = 0; edge < outer.length - 1; edge += 1) if (segmentsIntersect(hole[inner]!, hole[inner + 1]!, outer[edge]!, outer[edge + 1]!)) return false;
-  return true;
+const ringEdgesIntersect = (first: MapPoint[], second: MapPoint[]): boolean => {
+  for (let a = 0; a < first.length - 1; a += 1) for (let b = 0; b < second.length - 1; b += 1) if (segmentsIntersect(first[a]!, first[a + 1]!, second[b]!, second[b + 1]!)) return true;
+  return false;
+};
+const ringsOverlap = (first: MapPoint[], second: MapPoint[]): boolean => ringEdgesIntersect(first, second) || pointInRing(first[0]!, second) || pointInRing(second[0]!, first);
+const validHoles = (holes: MapPoint[][], outer: MapPoint[]): MapPoint[][] => {
+  const accepted: MapPoint[][] = [];
+  for (const hole of holes) {
+    if (!hole.slice(0, -1).every((point) => pointInRing(point, outer))) continue;
+    if (ringEdgesIntersect(hole, outer) || accepted.some((other) => ringsOverlap(hole, other))) continue;
+    accepted.push(hole);
+  }
+  return accepted;
 };
 const fallbackHeight = (id: number): number => 6 + Math.abs(id % 4) * 3;
 const buildingHeight = (tags: Record<string, string> | undefined, id: number): { height: number; levels?: number } => {
@@ -114,7 +126,7 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
       const outers = rings("outer"); const inners = rings("inner");
       if (!outers.length) return [];
       relation.members.filter((member) => member.type === "way" && member.role === "outer").forEach((member) => representedOuterIds.add(member.ref));
-      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: inners.filter((inner) => holeFitsOuter(inner, outer)), ...buildingHeight(relation.tags, relation.id) }));
+      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: validHoles(inners, outer), ...buildingHeight(relation.tags, relation.id) }));
     } catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
   });
   const standaloneBuildings = ways.filter((way) => way.tags?.building && way.tags.building !== "no" && !representedOuterIds.has(way.id)).flatMap((way): ImportedBuilding[] => {

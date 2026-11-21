@@ -52,11 +52,12 @@ test("preserves the published manifest when one XML cell fails after eight valid
   let calls = 0;
   const fetcher: typeof fetch = async (input) => {
     calls += 1;
+    if (String(input).includes("api.openstreetmap.org") && calls === 1) return new Response('<osm version="0.6"><node id="1" lat="47.25" lon="16.23"/><node id="2" lat="47.251" lon="16.231"/><way id="3"><nd ref="1"/><nd ref="2"/><tag k="highway" v="residential"/></way></osm>', { status: 200 });
     if (String(input).includes("api.openstreetmap.org") && calls <= 8) return new Response('<osm version="0.6"></osm>', { status: 200 });
     if (String(input).includes("api.openstreetmap.org")) return new Response('<osm version="0.6"><error>read failed</error></osm>', { status: 200 });
     return Response.json({ remark: "runtime error: timed out", elements: [] });
   };
-  await expect(importUnterwart(output, fetcher)).rejects.toThrow();
+  await expect(importUnterwart(output, fetcher)).rejects.toThrow("All Overpass endpoints failed");
   expect(await readFile(join(output, "manifest.json"), "utf8")).toBe("last-valid");
 });
 

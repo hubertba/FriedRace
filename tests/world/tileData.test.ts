@@ -48,6 +48,21 @@ test("rejects self-crossing footprints and holes that leave their outer ring", (
   expect(buildings.find((building) => building.id.startsWith("relation/33/"))?.inners).toHaveLength(0);
 });
 
+test("rejects backtracking footprints and overlapping holes", () => {
+  const n = (id:number, x:number, z:number) => ({type:"node",id,lat:47.2-z/10000,lon:16.1+x/10000});
+  const elements: any[] = [n(1,0,0),n(2,4,0),n(3,100,0),n(4,4,4),n(5,0,4),
+    {type:"way",id:40,nodes:[1,2,3,2,4,5,1],tags:{building:"yes"}},
+    n(10,0,0),n(11,20,0),n(12,20,20),n(13,0,20),
+    n(14,3,8),n(15,17,8),n(16,17,12),n(17,3,12),
+    n(18,8,3),n(19,12,3),n(20,12,17),n(21,8,17),
+    {type:"way",id:41,nodes:[10,11,12,13,10],tags:{}},{type:"way",id:42,nodes:[14,15,16,17,14],tags:{}},{type:"way",id:43,nodes:[18,19,20,21,18],tags:{}},
+    {type:"relation",id:44,members:[{type:"way",ref:41,role:"outer"},{type:"way",ref:42,role:"inner"},{type:"way",ref:43,role:"inner"}],tags:{type:"multipolygon",building:"yes"}},
+  ];
+  const buildings = convertOsmBatch({elements} as any, projection).buildings;
+  expect(buildings.some((building) => building.id === "way/40")).toBe(false);
+  expect(buildings.find((building) => building.id.startsWith("relation/44/"))?.inners).toHaveLength(1);
+});
+
 test("rejects missing referenced geometry", () => {
   const broken = structuredClone(fixture);
   const way = broken.elements.find((element) => element.type === "way" && element.id === 100)! as any;
