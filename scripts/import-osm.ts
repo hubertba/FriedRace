@@ -1,6 +1,7 @@
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { XMLParser } from "fast-xml-parser";
 import { convertOsmToMap, validateImportedMap, type OverpassResponse } from "../src/world/mapData";
 import { assignFeaturesToTiles, buildManifest, convertOsmBatch, validateMapManifest, validateMapTile, type MapManifest, type MapTile, type TileGrid } from "../src/world/tileData";
 import type { OverpassData } from "../src/world/osmTypes";
@@ -39,9 +40,30 @@ const fetchQuery = async (query: string, fetcher: typeof fetch, endpoints: strin
   throw new Error(`All Overpass endpoints failed: ${failures.join("; ")}`);
 };
 
+export const parseOsmXml = (xml: string): OverpassData => {
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: "", isArray: (name) => ["node", "way", "relation", "tag", "nd", "member"].includes(name) });
+  const parsed = parser.parse(xml).osm ?? {};
+  const tags = (items: Array<{ k: string; v: string }> = []): Record<string, string> => Object.fromEntries(items.map((item) => [item.k, item.v]));
+  const elements: OverpassData["elements"] = [];
+  for (const node of parsed.node ?? []) elements.push({ type: "node", id: Number(node.id), lat: Number(node.lat), lon: Number(node.lon), tags: tags(node.tag) });
+  for (const way of parsed.way ?? []) elements.push({ type: "way", id: Number(way.id), nodes: (way.nd ?? []).map((item: { ref: string }) => Number(item.ref)), tags: tags(way.tag) });
+  for (const relation of parsed.relation ?? []) elements.push({ type: "relation", id: Number(relation.id), members: (relation.member ?? []).map((item: { type: "way" | "node" | "relation"; ref: string; role?: string }) => ({ type: item.type, ref: Number(item.ref), role: item.role ?? "" })), tags: tags(relation.tag) });
+  return { elements };
+};
+
+const fetchOsmMapCell = async (cell: SourceCell, fetcher: typeof fetch): Promise<OverpassData> => {
+  const url = `https://api.openstreetmap.org/api/0.6/map?bbox=${cell.west},${cell.south},${cell.east},${cell.north}`;
+  const response = await fetcher(url, { headers: { "User-Agent": "FriedRace tiled map importer" } });
+  if (!response.ok) throw new Error(`OSM map fallback failed: ${response.status}`);
+  return parseOsmXml(await response.text());
+};
+
 export const fetchGridBatches = async (cells: SourceCell[], fetcher: typeof fetch = fetch, endpoints = ENDPOINTS): Promise<OverpassData[]> => {
   const results: OverpassData[] = [];
-  for (const cell of cells) results.push(await fetchQuery(buildOverpassQuery(cell), fetcher, endpoints));
+  for (const cell of cells) {
+    try { results.push(await fetchQuery(buildOverpassQuery(cell), fetcher, endpoints)); }
+    catch { results.push(await fetchOsmMapCell(cell, fetcher)); }
+  }
   return results;
 };
 
@@ -85,7 +107,8 @@ const run = async (): Promise<void> => {
   }
   const projection = { originLat: SPAWN.lat, originLon: SPAWN.lon, compression: 0.035 };
   const converted = convertOsmBatch({ elements: [...unique.values()] }, projection);
-  if (!converted.towns.some((town) => town.name.includes("Unterwart"))) converted.towns.push({ name: "Unterwart", x: 0, z: 0 });
+  converted.towns = converted.towns.filter((town) => town.name.includes("Unterwart"));
+  if (!converted.towns.length) converted.towns.push({ name: "Unterwart", x: 0, z: 0 });
   const allPoints = [...converted.roads.flatMap((road) => road.points), ...converted.buildings.flatMap((building) => building.outer)];
   if (allPoints.length === 0) throw new Error("Import produced no map features");
   const tileSize = 120;

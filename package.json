@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@dimforge/rapier3d-compat": "^0.19.3",
+    "fast-xml-parser": "^5.12.1",
     "three": "^0.181.2"
   },
   "devDependencies": {

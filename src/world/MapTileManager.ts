@@ -53,7 +53,7 @@ export class MapTileManager {
         const roads = new THREE.Mesh(roadGeometry, this.roadMaterial); roads.receiveShadow = true; roads.name = "roads";
         const buildings = new THREE.Mesh(buildingGeometry, this.buildingMaterial); buildings.castShadow = true; buildings.receiveShadow = true; buildings.name = "buildings";
         group.add(roads, buildings); this.options.scene.add(group);
-        const colliders = tile.buildings.map((building) => this.options.physics.addBuildingCollider(building));
+        const colliders = tile.buildings.map((building) => this.options.physics.addBuildingCollider(building)).filter((handle) => handle != null);
         this.loaded.set(tile.id, { tile, group, colliders });
       } catch (error) { this.options.onWarning?.(`Map tile ${descriptor.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
       finally { this.loading.delete(descriptor.id); }

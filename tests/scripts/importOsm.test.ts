@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, expect, test } from "vitest";
-import { buildOverpassQuery, buildSourceGrid, fetchGridBatches, publishMapDirectory } from "../../scripts/import-osm";
+import { buildOverpassQuery, buildSourceGrid, fetchGridBatches, parseOsmXml, publishMapDirectory } from "../../scripts/import-osm";
 import type { MapManifest, MapTile } from "../../src/world/tileData";
 
 const dirs: string[] = [];
@@ -14,6 +14,14 @@ test("builds a deterministic Unterwart source grid and complete query", () => {
   expect(grid[0]).toMatchObject({ row: 0, column: 0, south: 47.235, west: 16.205 });
   const query = buildOverpassQuery(grid[0]!);
   for (const value of ["residential", "living_street", "service", "track", "building", "relation"]) expect(query).toContain(value);
+});
+
+test("parses OSM XML fallback data into nodes, ways, and relations", () => {
+  const xml = `<?xml version="1.0"?><osm><node id="1" lat="47.2" lon="16.2"><tag k="name" v="Unterwart"/></node><way id="2"><nd ref="1"/><tag k="building" v="yes"/></way><relation id="3"><member type="way" ref="2" role="outer"/><tag k="type" v="multipolygon"/><tag k="building" v="yes"/></relation></osm>`;
+  const parsed = parseOsmXml(xml);
+  expect(parsed.elements.map((element: any) => element.type)).toEqual(["node", "way", "relation"]);
+  expect((parsed.elements[1] as any).nodes).toEqual([1]);
+  expect((parsed.elements[2] as any).members[0]).toEqual({ type: "way", ref: 2, role: "outer" });
 });
 
 test("fetches grid batches with endpoint fallback", async () => {

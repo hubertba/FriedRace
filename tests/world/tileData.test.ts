@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import fixture from "../fixtures/osm-buildings.json";
 import { assignFeaturesToTiles, buildManifest, convertOsmBatch, validateMapManifest, validateMapTile } from "../../src/world/tileData";
@@ -29,6 +30,16 @@ test("rejects missing referenced geometry", () => {
   const relation = brokenRelation.elements.find((element) => element.type === "relation")! as any;
   relation.members.push({ type: "way", ref: 99999, role: "outer" });
   expect(() => convertOsmBatch(brokenRelation, projection)).toThrow(/missing way/i);
+});
+
+test("checked-in Unterwart assets contain real streets, buildings, and the address spawn", async () => {
+  const manifest = JSON.parse(await readFile("public/map/manifest.json", "utf8"));
+  expect(validateMapManifest(manifest)).not.toBeNull();
+  expect(manifest.towns.some((town: { name: string }) => town.name.includes("Unterwart"))).toBe(true);
+  expect(manifest.spawn).toEqual({ x: 0, z: 0 });
+  const tiles = await Promise.all(manifest.tiles.map(async (descriptor: { url: string }) => JSON.parse(await readFile(`public${descriptor.url}`, "utf8"))));
+  expect(tiles.reduce((sum: number, tile: { buildings: unknown[] }) => sum + tile.buildings.length, 0)).toBeGreaterThan(100);
+  expect(tiles.flatMap((tile: { roads: Array<{ highway: string }> }) => tile.roads).some((road: { highway: string }) => road.highway === "residential" || road.highway === "service")).toBe(true);
 });
 
 test("assigns boundary features to touched tiles without duplicates", () => {

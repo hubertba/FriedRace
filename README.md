@@ -1,6 +1,6 @@
 # Fried Race
 
-Ein kleines webbasiertes 3D-Arcade-Rennspiel mit lokal gespeicherten OpenStreetMap-Straßen für Unterwart, Oberwart, Pinkafeld, Oberschützen und Großpetersdorf.
+Ein kleines webbasiertes 3D-Arcade-Rennspiel mit lokal gespeicherten OpenStreetMap-Straßen und Gebäuden für Unterwart. Garage und Startpunkt liegen bei Dr.-Galambos-Gasse 12.
 
 ## Starten
 
@@ -32,7 +32,9 @@ Der Spielstand beginnt mit 30.000 Euro und einem stilisierten Mitsubishi Eclipse
 npm run map:import
 ```
 
-Der Import lädt die Straßen nur während der Entwicklung über Overpass, validiert das verbundene Hauptstraßennetz und ersetzt `src/content/map/region.json` atomar. Das laufende Spiel verwendet ausschließlich diese lokale Datei. Kartendaten: © OpenStreetMap-Mitwirkende, bereitgestellt unter ODbL. Siehe <https://www.openstreetmap.org/copyright>.
+Der Import lädt Unterwarts Straßen und Gebäude nur während der Entwicklung. Er versucht Overpass und verwendet bei Ausfällen kleine Abfragen an die OSM-Map-API. Anschließend erzeugt er atomar `public/map/manifest.json` und lokale Kartenteile. Das laufende Spiel lädt eine 3×3-Nachbarschaft dieser lokalen Dateien und kontaktiert weder OpenStreetMap noch Overpass. Gebäude werden als vereinfachte 3D-Körper mit näherungsweisen Kollisionen dargestellt. Ein fehlgeschlagener Import lässt die letzte gültige Karte unverändert.
+
+Kartendaten: © OpenStreetMap-Mitwirkende, bereitgestellt unter ODbL. Siehe <https://www.openstreetmap.org/copyright>.
 
 ## Tests und Build
 
