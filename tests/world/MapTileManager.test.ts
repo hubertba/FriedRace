@@ -5,7 +5,7 @@ import type { MapManifest, MapTile } from "../../src/world/tileData";
 
 const descriptors = Array.from({ length: 16 }, (_, index) => ({ id: `${index % 4}-${Math.floor(index / 4)}`, x: index % 4, z: Math.floor(index / 4), url: `/map/tile-${index}.json` }));
 const manifest: MapManifest = { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", grid: { minX: 0, minZ: 0, tileSize: 100, columns: 4, rows: 4 }, tiles: descriptors, towns: [{ name: "Unterwart", x: 50, z: 50 }], spawn: { x: 50, z: 50 }, overviewRoads: [] };
-const makeTile = (id: string): MapTile => { const [x, z] = id.split("-").map(Number); const minX = x! * 100; const minZ = z! * 100; return { version: 2, id, x: x!, z: z!, bounds: { minX, maxX: minX + 100, minZ, maxZ: minZ + 100 }, roads: [], buildings: [{ id: `building-${id}`, outer: [{x:minX+10,z:minZ+10},{x:minX+20,z:minZ+10},{x:minX+20,z:minZ+20},{x:minX+10,z:minZ+20},{x:minX+10,z:minZ+10}], inners: [], height: 6 }] }; };
+const makeTile = (id: string): MapTile => { const [x, z] = id.split("-").map(Number); const minX = x! * 100; const minZ = z! * 100; return { version: 2, id, x: x!, z: z!, bounds: { minX, maxX: minX + 100, minZ, maxZ: minZ + 100 }, roads: [], buildings: [{ id: `building-${id}`, outer: [{x:minX+10,z:minZ+10},{x:minX+20,z:minZ+10},{x:minX+20,z:minZ+20},{x:minX+10,z:minZ+20},{x:minX+10,z:minZ+10}], inners: [], height: 6, minHeight: 0, levels: 2, buildingType: "house", facadeMaterial: "plaster", facadeColor: "#d8b28f", roofShape: "gabled", roofMaterial: "tiles", roofColor: "#934b3d", roofHeight: 2 }] }; };
 
 test("loads a 3x3 neighborhood without duplicates and unloads distant tiles", async () => {
   const loads: string[] = []; const removed: unknown[] = [];

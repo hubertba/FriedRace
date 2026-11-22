@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import fixture from "../fixtures/osm-buildings.json";
-import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, validateMapManifest, validateMapTile } from "../../src/world/tileData";
+import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, resolveBuildingAppearance, validateMapManifest, validateMapTile } from "../../src/world/tileData";
 
 const projection = { originLat: 47.2, originLon: 16.1, compression: 0.035 };
 
@@ -14,11 +14,22 @@ test("converts building ways and multipolygon relations with deterministic heigh
   const batch = convertOsmBatch(fixture, projection);
   const way = batch.buildings.find((building) => building.id === "way/200")!;
   const relation = batch.buildings.find((building) => building.id.startsWith("relation/300/"))!;
-  expect(way.height).toBe(6);
+  expect(way.height).toBe(7.5);
   expect(way.outer.at(0)).toEqual(way.outer.at(-1));
   expect(relation.height).toBe(12.5);
   expect(relation.inners).toHaveLength(1);
+  expect(way).toMatchObject({ buildingType: "house", minHeight: 1.5, levels: 2, facadeMaterial: "brick", facadeColor: "#aabbcc", roofShape: "hipped", roofMaterial: "tiles", roofColor: "#b54a3a", roofHeight: 2 });
+  expect(batch.buildings.some((building) => building.id === "way/203" && building.buildingType === "part")).toBe(true);
   expect(convertOsmBatch(fixture, projection).buildings).toEqual(batch.buildings);
+});
+
+test("resolves stable type-specific fallback appearances", () => {
+  const residential = resolveBuildingAppearance({ building: "detached" }, 77);
+  expect(resolveBuildingAppearance({ building: "detached" }, 77)).toEqual(residential);
+  expect(residential.roofShape).toMatch(/gabled|hipped/);
+  const garage = resolveBuildingAppearance({ building: "garage" }, 77);
+  expect(garage).not.toEqual(residential);
+  expect(garage.roofShape).toBe("flat");
 });
 
 test("joins split relation ways and preserves multiple outer parts", () => {

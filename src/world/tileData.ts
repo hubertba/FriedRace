@@ -2,7 +2,9 @@ import type { MapPoint } from "./mapData";
 import type { OsmNode, OsmRelation, OsmWay, OverpassData, ProjectionConfig } from "./osmTypes";
 
 export interface TiledRoad { id: string; name: string; highway: string; width: number; points: MapPoint[]; }
-export interface ImportedBuilding { id: string; name?: string; outer: MapPoint[]; inners: MapPoint[][]; height: number; levels?: number; }
+export type RoofShape = "flat" | "gabled" | "hipped";
+export interface BuildingAppearance { buildingType: string; facadeMaterial: string; facadeColor: string; roofShape: RoofShape; roofMaterial: string; roofColor: string; roofHeight: number; }
+export interface ImportedBuilding extends BuildingAppearance { id: string; name?: string; outer: MapPoint[]; inners: MapPoint[][]; height: number; minHeight: number; levels: number; }
 export interface ConvertedBatch { roads: TiledRoad[]; buildings: ImportedBuilding[]; towns: Array<MapPoint & { name: string }>; }
 export interface TileGrid { minX: number; minZ: number; tileSize: number; columns: number; rows: number; }
 export interface MapTile { version: 2; id: string; x: number; z: number; bounds: { minX: number; maxX: number; minZ: number; maxZ: number }; roads: TiledRoad[]; buildings: ImportedBuilding[]; }
@@ -62,13 +64,40 @@ const validHoles = (holes: MapPoint[][], outer: MapPoint[]): MapPoint[][] => {
   }
   return accepted;
 };
-const fallbackHeight = (id: number): number => 6 + Math.abs(id % 4) * 3;
-const buildingHeight = (tags: Record<string, string> | undefined, id: number): { height: number; levels?: number } => {
-  const direct = Number.parseFloat(tags?.height ?? "");
-  const levels = Number.parseFloat(tags?.["building:levels"] ?? "");
-  if (Number.isFinite(direct) && direct > 0) return { height: Math.min(direct, 80), levels: Number.isFinite(levels) ? levels : undefined };
-  if (Number.isFinite(levels) && levels > 0) return { height: Math.min(levels * 3, 80), levels };
-  return { height: fallbackHeight(id) };
+const stableIndex = (id: number, length: number, salt = 0): number => Math.abs((id * 1103515245 + 12345 + salt * 2654435761) | 0) % length;
+const colorNames: Record<string, string> = { red: "#b54a3a", brown: "#795548", grey: "#777b80", gray: "#777b80", white: "#e8e3d8", beige: "#d1b995", yellow: "#d6bd73", black: "#34373a", green: "#58705a", blue: "#66839a" };
+const normalizedColor = (value: string | undefined, fallback: string): string => {
+  if (!value) return fallback;
+  const color = value.trim().toLowerCase();
+  if (/^#[0-9a-f]{6}$/i.test(color)) return color;
+  if (/^#[0-9a-f]{3}$/i.test(color)) return `#${color.slice(1).split("").map((part) => part + part).join("")}`;
+  return colorNames[color] ?? fallback;
+};
+const residentialTypes = new Set(["house", "detached", "residential", "apartments", "terrace", "semidetached_house"]);
+const utilityTypes = new Set(["garage", "garages", "shed", "carport", "barn"]);
+const industrialTypes = new Set(["industrial", "warehouse", "hangar", "farm_auxiliary"]);
+const publicTypes = new Set(["public", "school", "civic", "government", "hospital"]);
+export const resolveBuildingAppearance = (tags: Record<string, string> | undefined, id: number): BuildingAppearance => {
+  const buildingType = tags?.["building:part"] && !tags?.building ? "part" : (tags?.building ?? "yes");
+  const residential = residentialTypes.has(buildingType); const utility = utilityTypes.has(buildingType); const industrial = industrialTypes.has(buildingType); const church = buildingType === "church" || buildingType === "chapel"; const publicBuilding = publicTypes.has(buildingType);
+  const facadePalette = utility ? ["#a99f8c", "#8f9695", "#b2aa98"] : industrial ? ["#afb6b6", "#c1b9a8", "#929b9e"] : church ? ["#d6cfbd", "#c9bea7"] : publicBuilding ? ["#d7d2c5", "#c7d0cf", "#d5c5ad"] : residential ? ["#d8b28f", "#c98f72", "#e0c9a7", "#c7b7a2", "#d5d1c3"] : ["#c8b49d", "#d4c7b5", "#b9aaa0", "#d5c7aa"];
+  const roofPalette = industrial || utility ? ["#555b60", "#6b6760", "#777b80"] : ["#934b3d", "#a85a43", "#6b554c", "#55585b"];
+  const fallbackShape: RoofShape = utility || industrial ? "flat" : church ? "gabled" : residential ? (["gabled", "hipped"] as RoofShape[])[stableIndex(id, 2, 3)]! : (["flat", "gabled", "hipped"] as RoofShape[])[stableIndex(id, 3, 3)]!;
+  const explicitShape = tags?.["roof:shape"]?.toLowerCase();
+  const roofShape: RoofShape = explicitShape === "gabled" ? "gabled" : ["hipped", "pyramidal", "half-hipped"].includes(explicitShape ?? "") ? "hipped" : explicitShape === "flat" ? "flat" : fallbackShape;
+  const explicitRoofHeight = Number.parseFloat(tags?.["roof:height"] ?? ""); const roofLevels = Number.parseFloat(tags?.["roof:levels"] ?? "");
+  const roofHeight = Number.isFinite(explicitRoofHeight) && explicitRoofHeight >= 0 ? explicitRoofHeight : Number.isFinite(roofLevels) && roofLevels > 0 ? roofLevels * 3 : roofShape === "flat" ? 0.35 : utility ? 0.8 : 2.4;
+  const facadeFallback = facadePalette[stableIndex(id, facadePalette.length, 1)]!; const roofFallback = roofPalette[stableIndex(id, roofPalette.length, 2)]!;
+  return { buildingType, facadeMaterial: tags?.["building:material"] ?? (industrial ? "metal" : utility ? "concrete" : church ? "stone" : "plaster"), facadeColor: normalizedColor(tags?.["building:colour"], facadeFallback), roofShape, roofMaterial: tags?.["roof:material"] ?? (roofShape === "flat" ? "concrete" : "tiles"), roofColor: normalizedColor(tags?.["roof:colour"], roofFallback), roofHeight };
+};
+const fallbackHeight = (tags: Record<string, string> | undefined, id: number): number => utilityTypes.has(tags?.building ?? "") ? 3 + stableIndex(id, 2) * 1.5 : 6 + Math.abs(id % 4) * 3;
+const buildingDetails = (tags: Record<string, string> | undefined, id: number): BuildingAppearance & { height: number; minHeight: number; levels: number } => {
+  const appearance = resolveBuildingAppearance(tags, id); const direct = Number.parseFloat(tags?.height ?? ""); const taggedLevels = Number.parseFloat(tags?.["building:levels"] ?? ""); const taggedMinHeight = Number.parseFloat(tags?.min_height ?? "");
+  const minHeight = Number.isFinite(taggedMinHeight) && taggedMinHeight >= 0 ? Math.min(taggedMinHeight, 40) : 0;
+  const height = Number.isFinite(direct) && direct > minHeight ? Math.min(direct, 80) : Number.isFinite(taggedLevels) && taggedLevels > 0 ? Math.min(minHeight + taggedLevels * 3, 80) : fallbackHeight(tags, id);
+  const roofHeight = Math.min(appearance.roofHeight, Math.max(0, height - minHeight - 0.5));
+  const levels = Number.isFinite(taggedLevels) && taggedLevels > 0 ? taggedLevels : Math.max(1, Math.round((height - minHeight - roofHeight) / 3));
+  return { ...appearance, roofHeight, height, minHeight, levels };
 };
 
 export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfig): ConvertedBatch => {
@@ -101,7 +130,7 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
   })).filter((road) => road.points.length >= 2);
 
   const representedOuterIds = new Set<number>();
-  const relationBuildings = relations.filter((relation) => relation.tags?.type === "multipolygon" && relation.tags?.building && relation.tags.building !== "no").flatMap((relation): ImportedBuilding[] => {
+  const relationBuildings = relations.filter((relation) => relation.tags?.type === "multipolygon" && ((relation.tags?.building && relation.tags.building !== "no") || relation.tags?.["building:part"])).flatMap((relation): ImportedBuilding[] => {
     for (const member of relation.members.filter((item) => item.type === "way")) if (!wayById.has(member.ref)) throw new Error(`Missing way ${member.ref}`);
     const rings = (role: string): MapPoint[][] => {
       const remaining = relation.members.filter((member) => member.type === "way" && member.role === role).map((member) => {
@@ -126,11 +155,11 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
       const outers = rings("outer"); const inners = rings("inner");
       if (!outers.length) return [];
       relation.members.filter((member) => member.type === "way" && member.role === "outer").forEach((member) => representedOuterIds.add(member.ref));
-      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: validHoles(inners, outer), ...buildingHeight(relation.tags, relation.id) }));
+      return outers.map((outer, index) => ({ id: `relation/${relation.id}/${index}`, name: relation.tags?.name, outer, inners: validHoles(inners, outer), ...buildingDetails(relation.tags, relation.id) }));
     } catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
   });
-  const standaloneBuildings = ways.filter((way) => way.tags?.building && way.tags.building !== "no" && !representedOuterIds.has(way.id)).flatMap((way): ImportedBuilding[] => {
-    try { return [{ id: `way/${way.id}`, name: way.tags?.name, outer: closeRing(pointsForWay(way)), inners: [], ...buildingHeight(way.tags, way.id) }]; }
+  const standaloneBuildings = ways.filter((way) => ((way.tags?.building && way.tags.building !== "no") || way.tags?.["building:part"]) && !representedOuterIds.has(way.id)).flatMap((way): ImportedBuilding[] => {
+    try { return [{ id: `way/${way.id}`, name: way.tags?.name, outer: closeRing(pointsForWay(way)), inners: [], ...buildingDetails(way.tags, way.id) }]; }
     catch (error) { if (error instanceof Error && error.message.startsWith("Missing ")) throw error; return []; }
   });
   const towns = nodes.filter((node) => node.tags?.place && node.tags?.name).map((node) => ({ name: node.tags!.name!, ...project(node.id) }));

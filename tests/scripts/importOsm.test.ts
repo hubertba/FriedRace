@@ -14,7 +14,7 @@ test("builds a deterministic Unterwart source grid and complete query", () => {
   expect(PHASE_ONE_PROJECTION.compression).toBe(1);
   expect(grid[0]).toMatchObject({ row: 0, column: 0, south: 47.235, west: 16.205 });
   const query = buildOverpassQuery(grid[0]!);
-  for (const value of ["residential", "living_street", "service", "track", "building", "relation"]) expect(query).toContain(value);
+  for (const value of ["residential", "living_street", "service", "track", "building", "building:part", "relation"]) expect(query).toContain(value);
 });
 
 test("parses OSM XML fallback data into nodes, ways, and relations", () => {

@@ -27,7 +27,9 @@ export const buildOverpassQuery = (cell: GeoBounds): string => `[out:json][timeo
   node[place][name="Unterwart"](${cell.south},${cell.west},${cell.north},${cell.east});
   way[highway~"^(motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|track)$"](${cell.south},${cell.west},${cell.north},${cell.east});
   way[building](${cell.south},${cell.west},${cell.north},${cell.east});
+  way["building:part"](${cell.south},${cell.west},${cell.north},${cell.east});
   relation[type=multipolygon][building](${cell.south},${cell.west},${cell.north},${cell.east});
+  relation[type=multipolygon]["building:part"](${cell.south},${cell.west},${cell.north},${cell.east});
 );(._;>;);out body;`;
 
 const fetchQuery = async (query: string, fetcher: typeof fetch, endpoints: string[]): Promise<OverpassData> => {
