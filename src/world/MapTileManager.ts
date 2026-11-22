@@ -1,6 +1,8 @@
 import * as THREE from "three";
+import { createAsphaltTexture } from "../visuals/ProceduralTextures";
 import type { MapPoint } from "./mapData";
-import { buildBuildingGeometries, buildRoadGeometry } from "./TileGeometry";
+import { buildBuildingGeometries } from "./TileGeometry";
+import { buildRoadGeometries } from "./RoadGeometry";
 import { validateMapTile, type ImportedBuilding, type MapManifest, type MapTile } from "./tileData";
 
 export interface TilePhysics {
@@ -28,7 +30,10 @@ export class MapTileManager {
   private readonly failed = new Set<string>();
   private desiredIds = new Set<string>();
   private disposed = false;
-  private readonly roadMaterial = new THREE.MeshStandardMaterial({ color: 0x4e5358, roughness: 0.95 });
+  private readonly asphaltTexture = createAsphaltTexture();
+  private readonly roadMaterial = new THREE.MeshStandardMaterial({ color: 0x777b7f, map: this.asphaltTexture, roughness: 0.96 });
+  private readonly shoulderMaterial = new THREE.MeshStandardMaterial({ color: 0x7d765f, roughness: 1 });
+  private readonly markingMaterial = new THREE.MeshStandardMaterial({ color: 0xf0e8cf, roughness: 0.72 });
   private readonly wallMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
   private readonly roofMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
   private readonly windowMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.15 });
@@ -36,6 +41,7 @@ export class MapTileManager {
   get loadedTileIds(): string[] { return [...this.loaded.keys()]; }
   get loadedBuildingCount(): number { return [...this.loaded.values()].reduce((sum, entry) => sum + entry.tile.buildings.length, 0); }
   get loadedBuildingLayerNames(): string[] { return this.loaded.size ? ["building-walls", "building-roofs", "building-windows"] : []; }
+  get loadedRoadLayerNames(): string[] { return this.loaded.size ? ["road-surface", "road-shoulders", "road-markings"] : []; }
   tileIdAt(position: MapPoint): string {
     const { grid } = this.options.manifest;
     return `${Math.floor((position.x - grid.minX) / grid.tileSize)}-${Math.floor((position.z - grid.minZ) / grid.tileSize)}`;
@@ -57,13 +63,15 @@ export class MapTileManager {
         if (!tile) throw new Error("invalid tile data");
         if (this.disposed || !this.desiredIds.has(descriptor.id)) return;
         const group = new THREE.Group(); group.name = `map-tile-${tile.id}`;
-        const roadGeometry = buildRoadGeometry(tile);
+        const roadGeometries = buildRoadGeometries(tile);
         const buildingGeometries = buildBuildingGeometries(tile);
-        const roads = new THREE.Mesh(roadGeometry, this.roadMaterial); roads.receiveShadow = true; roads.name = "roads";
+        const roads = new THREE.Mesh(roadGeometries.surface, this.roadMaterial); roads.receiveShadow = true; roads.name = "road-surface";
+        const shoulders = new THREE.Mesh(roadGeometries.shoulders, this.shoulderMaterial); shoulders.receiveShadow = true; shoulders.name = "road-shoulders";
+        const markings = new THREE.Mesh(roadGeometries.markings, this.markingMaterial); markings.receiveShadow = true; markings.name = "road-markings";
         const walls = new THREE.Mesh(buildingGeometries.walls, this.wallMaterial); walls.castShadow = true; walls.receiveShadow = true; walls.name = "building-walls";
         const roofs = new THREE.Mesh(buildingGeometries.roofs, this.roofMaterial); roofs.castShadow = true; roofs.receiveShadow = true; roofs.name = "building-roofs";
         const windows = new THREE.Mesh(buildingGeometries.windows, this.windowMaterial); windows.receiveShadow = true; windows.name = "building-windows";
-        group.add(roads, walls, roofs, windows);
+        group.add(shoulders, roads, markings, walls, roofs, windows);
         const colliders: unknown[] = [];
         try {
           for (const building of tile.buildings) { const handle = this.options.physics.addBuildingCollider(building); if (handle != null) colliders.push(handle); }
@@ -85,7 +93,7 @@ export class MapTileManager {
   dispose(): void {
     this.disposed = true; this.desiredIds.clear();
     for (const [id, tile] of [...this.loaded]) this.unload(id, tile);
-    this.roadMaterial.dispose(); this.wallMaterial.dispose(); this.roofMaterial.dispose(); this.windowMaterial.dispose();
+    this.roadMaterial.dispose(); this.shoulderMaterial.dispose(); this.markingMaterial.dispose(); this.asphaltTexture.dispose(); this.wallMaterial.dispose(); this.roofMaterial.dispose(); this.windowMaterial.dispose();
   }
 
   private unload(id: string, loaded: LoadedTile): void {

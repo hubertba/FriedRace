@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import * as THREE from "three";
-import { createGrassTexture } from "../../src/visuals/ProceduralTextures";
+import { createAsphaltTexture, createGrassTexture } from "../../src/visuals/ProceduralTextures";
 
 describe("createGrassTexture", () => {
   test("creates a deterministic repeating sRGB texture", () => {
@@ -14,4 +14,10 @@ describe("createGrassTexture", () => {
     expect(new Set(first.userData.pixelData as number[]).size).toBeGreaterThan(8);
     first.dispose(); second.dispose();
   });
+});
+
+test("creates a deterministic repeating asphalt texture", () => {
+  const texture = createAsphaltTexture(32);
+  expect(texture.wrapS).toBe(THREE.RepeatWrapping); expect(texture.wrapT).toBe(THREE.RepeatWrapping); expect(texture.colorSpace).toBe(THREE.SRGBColorSpace);
+  expect(new Set(texture.userData.pixelData as number[]).size).toBeGreaterThan(5); texture.dispose();
 });

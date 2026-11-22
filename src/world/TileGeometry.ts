@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
 import type { ImportedBuilding, MapTile } from "./tileData";
+import { buildRoadGeometries } from "./RoadGeometry";
 
 const geometryFrom = (positions: number[], colors: number[]): THREE.BufferGeometry => {
   const geometry = new THREE.BufferGeometry();
@@ -35,17 +36,7 @@ const addColor = (geometry: THREE.BufferGeometry, value: string): THREE.BufferGe
   result.deleteAttribute("uv"); result.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3)); result.computeVertexNormals(); return result;
 };
 
-export const buildRoadGeometry = (tile: MapTile): THREE.BufferGeometry => {
-  const vertices: number[] = [];
-  for (const road of tile.roads) for (let index = 1; index < road.points.length; index += 1) {
-    const start = road.points[index - 1]!; const end = road.points[index]!;
-    const dx = end.x - start.x; const dz = end.z - start.z; const length = Math.hypot(dx, dz);
-    if (!length) continue;
-    const nx = (-dz / length) * road.width / 2; const nz = (dx / length) * road.width / 2;
-    vertices.push(start.x + nx, 0.04, start.z + nz, end.x + nx, 0.04, end.z + nz, start.x - nx, 0.04, start.z - nz, end.x + nx, 0.04, end.z + nz, end.x - nx, 0.04, end.z - nz, start.x - nx, 0.04, start.z - nz);
-  }
-  const geometry = new THREE.BufferGeometry(); geometry.setAttribute("position", new THREE.Float32BufferAttribute(vertices, 3)); geometry.computeVertexNormals(); return geometry;
-};
+export const buildRoadGeometry = (tile: MapTile): THREE.BufferGeometry => { const geometries = buildRoadGeometries(tile); geometries.shoulders.dispose(); geometries.markings.dispose(); return geometries.surface; };
 
 const roofGeometry = (building: ImportedBuilding, wallPositions: number[], wallColors: number[]): THREE.BufferGeometry => {
   const normalizedOuter = normalizeRing(building.outer, true); const outer = normalizedOuter.slice(0, -1); const normalizedInners = building.inners.map((ring) => normalizeRing(ring, false)); const roofColor = new THREE.Color(building.roofColor); const facadeColor = new THREE.Color(building.facadeColor);
