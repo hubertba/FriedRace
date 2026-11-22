@@ -17,6 +17,23 @@ test("plans deterministic bounded decoration with road, building, and boundary c
   }
 });
 
+test("uses neighboring tiles to exclude protruding buildings and wide roads", () => {
+  const base={...tile(),roads:[],buildings:[]}; const neighbor={...tile("1-0"),x:1,bounds:{minX:100,maxX:200,minZ:0,maxZ:100},roads:[{id:"wide",name:"Wide",highway:"primary",width:30,points:[{x:50,z:8},{x:50,z:92}]}],buildings:[{...tile().buildings[0]!,id:"protruding",outer:[{x:60,z:15},{x:140,z:15},{x:140,z:85},{x:60,z:85},{x:60,z:15}]}]};
+  const plan=planTileDecoration(base,100,{exclusionTiles:[neighbor]}); const plants=[...plan.trees,...plan.bushes,...plan.grass]; expect(plants.length).toBeGreaterThan(0); for(const point of plants) { expect(point.x>=57&&point.x<=100&&point.z>=12&&point.z<=88).toBe(false); expect(Math.abs(point.x-50)).toBeGreaterThan(15); }
+});
+
+test("keeps roadside props out of other intersecting carriageways", () => {
+  const parallel={...tile(),buildings:[],roads:[{id:"a",name:"A",highway:"residential",width:8,points:[{x:8,z:40},{x:92,z:40}]},{id:"b",name:"B",highway:"residential",width:8,points:[{x:8,z:46},{x:92,z:46}]}]}; const plan=planTileDecoration(parallel,100);
+  expect(plan.delineators.length+plan.streetlights.length).toBeGreaterThan(0);
+  for(const point of [...plan.delineators,...plan.streetlights]) expect(Math.min(Math.abs(point.z-40),Math.abs(point.z-46))).toBeGreaterThan(4);
+});
+
+test("keeps roadside props out of a crossing carriageway", () => {
+  const crossing={...tile(),buildings:[],roads:[{id:"a",name:"A",highway:"residential",width:8,points:[{x:8,z:50},{x:92,z:50}]},{id:"b",name:"B",highway:"residential",width:8,points:[{x:50,z:8},{x:50,z:92}]}]}; const plan=planTileDecoration(crossing,100);
+  expect(plan.delineators.length+plan.streetlights.length).toBeGreaterThan(0);
+  for (const point of [...plan.delineators, ...plan.streetlights]) expect(Math.abs(point.z - 50) <= 4 && Math.abs(point.x - 50) <= 4).toBe(false);
+});
+
 test("handles empty and malformed features with finite capped output", () => {
   const malformed={...tile(),roads:[{...tile().roads[0]!,points:[{x:Number.NaN,z:2},{x:3,z:4}]}],buildings:[{...tile().buildings[0]!,outer:[]}]} as MapTile;
   const plan=planTileDecoration(malformed,100); const all=Object.values(plan).flat();

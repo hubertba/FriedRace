@@ -21,6 +21,7 @@ test("creates and disposes a warm sky and shadow-casting sun", () => {
   expect(scene.getObjectByName("warm-sky")).toBeTruthy();
   expect(environment.sun.castShadow).toBe(true);
   expect(environment.sun.color.r).toBeGreaterThan(environment.sun.color.b);
+  environment.update({x:3200,z:4100}); const sky=scene.getObjectByName("warm-sky")!; expect(sky.position.x).toBe(3200); expect(sky.position.z).toBe(4100); expect(environment.sun.target.position.x).toBe(3200); expect(environment.sun.position.x-environment.sun.target.position.x).toBeCloseTo(-130);
   environment.dispose();
   expect(scene.getObjectByName("warm-sky")).toBeFalsy();
   expect(scene.children).not.toContain(environment.sun);

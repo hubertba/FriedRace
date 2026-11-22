@@ -62,7 +62,8 @@ export class GameApp {
     const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 2500);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    configureRenderer(this.renderer, new URLSearchParams(location.search).get("e2e") !== "1");
+    const search = new URLSearchParams(location.search);
+    configureRenderer(this.renderer, search.get("e2e") !== "1");
 
     const body = physics.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
@@ -72,6 +73,9 @@ export class GameApp {
     );
     physics.createCollider(RAPIER.ColliderDesc.cuboid(1, 0.45, 2.1).setFriction(1.2), body);
     this.vehicle = new VehicleRuntime(body, scene, this.world.spawn, activeVehicle);
+    if (search.get("failVehicle") === "1") {
+      await this.vehicle.attachOptionalVisual("/missing-vehicle.glb", async () => { throw new Error("missing optional vehicle"); });
+    }
     this.keyboard = new KeyboardInput();
     const chaseCamera = new ChaseCamera(camera);
     const hud = new Hud();

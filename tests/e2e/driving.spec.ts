@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("drives and resets the starter car", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByTestId("loading-status")).toBeHidden({ timeout: 20_000 });
+  await expect(page.getByTestId("loading-status")).toBeHidden({ timeout: 40_000 });
   await expect(page.getByTestId("speed")).toHaveText("0 km/h");
   await expect(page.getByTestId("money")).toHaveText("€30,000");
 

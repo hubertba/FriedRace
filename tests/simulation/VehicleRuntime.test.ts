@@ -13,6 +13,15 @@ test("velocity follows the same yaw as the car nose", () => {
   expect(left.z).toBeCloseTo(0);
 });
 
+test("keeps the generated coupe when optional visual loading fails", async () => {
+  const body = { translation: () => ({x:0,y:1.2,z:0}), rotation: () => ({x:0,y:0,z:0,w:1}), linvel: () => ({x:0,y:0,z:0}), setTranslation: vi.fn(), setLinvel: vi.fn(), setAngvel: vi.fn(), setRotation: vi.fn() } as unknown as RAPIER.RigidBody;
+  const scene = new THREE.Scene(); const runtime = new VehicleRuntime(body, scene, new THREE.Vector3(0,1.2,0), VEHICLES[0]!);
+  await expect(runtime.attachOptionalVisual("/missing.glb", async () => { throw new Error("missing"); })).resolves.toBe(false);
+  expect(runtime.object.getObjectByName("vehicle-body")).toBeTruthy();
+  expect(document.body.dataset.vehicleAssetWarning).toBe("fallback");
+  runtime.dispose();
+});
+
 test("keeps a stable visual root and disposes replaced vehicle visuals", () => {
   const body = { translation: () => ({x:0,y:1.2,z:0}), rotation: () => ({x:0,y:0,z:0,w:1}), linvel: () => ({x:0,y:0,z:0}), setTranslation: vi.fn(), setLinvel: vi.fn(), setAngvel: vi.fn(), setRotation: vi.fn() } as unknown as RAPIER.RigidBody;
   const scene = new THREE.Scene(); const runtime = new VehicleRuntime(body, scene, new THREE.Vector3(0,1.2,0), VEHICLES[0]!); const root = runtime.object;

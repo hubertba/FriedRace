@@ -25,7 +25,7 @@ test("builds shallow foundation bands for both footprint windings and omits malf
     [{x:10,z:10},{x:10,z:18},{x:22,z:18},{x:22,z:10},{x:10,z:10}],
   ]) {
     const geometries = buildBuildingGeometries(tile([building({outer}), building({id:"malformed",outer:[]})]));
-    expect(geometries.foundations.getAttribute("position").count).toBeGreaterThan(0); geometries.foundations.computeBoundingBox(); expect(geometries.foundations.boundingBox!.min.y).toBe(0); expect(geometries.foundations.boundingBox!.max.y).toBeLessThanOrEqual(.55); Object.values(geometries).forEach((geometry)=>geometry.dispose());
+    expect(geometries.foundations.getAttribute("position").count).toBeGreaterThan(0); geometries.foundations.computeBoundingBox(); geometries.walls.computeBoundingBox(); expect(geometries.foundations.boundingBox!.min.y).toBe(0); expect(geometries.foundations.boundingBox!.max.y).toBeLessThanOrEqual(.55); expect(geometries.walls.boundingBox!.min.y).toBeGreaterThanOrEqual(geometries.foundations.boundingBox!.max.y); Object.values(geometries).forEach((geometry)=>geometry.dispose());
   }
 });
 

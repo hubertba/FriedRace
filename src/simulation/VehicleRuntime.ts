@@ -1,7 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import type { VehicleDefinition } from "../domain/types";
-import { createVehicleVisual, disposeVehicleVisual } from "../visuals/VehicleVisual";
+import { createVehicleVisual, disposeVehicleVisual, loadOptionalVehicleVisual } from "../visuals/VehicleVisual";
 import { stepArcadeVehicle, type DriveInput } from "./ArcadeVehicle";
 
 export const FIXED_STEP = 1 / 60;
@@ -21,7 +21,7 @@ export const consumeFixedSteps = (accumulator: number, elapsed: number): { steps
 
 export class VehicleRuntime {
   readonly object = new THREE.Group();
-  private visual: THREE.Group;
+  private visual: THREE.Object3D;
   private speed = 0;
   private heading = 0;
 
@@ -74,6 +74,20 @@ export class VehicleRuntime {
     this.body.setTranslation({ x: point.x, y: this.spawn.y, z: point.z }, true);
     this.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
     this.syncObject();
+  }
+
+  async attachOptionalVisual(url: string, load: (url: string) => Promise<THREE.Object3D>): Promise<boolean> {
+    const optional = await loadOptionalVehicleVisual(url, load);
+    if (!optional) {
+      document.body.dataset.vehicleAssetWarning = "fallback";
+      return false;
+    }
+    this.object.remove(this.visual);
+    disposeVehicleVisual(this.visual);
+    this.visual = optional;
+    this.visual.position.y = -0.45;
+    this.object.add(this.visual);
+    return true;
   }
 
   setVehicle(vehicle: VehicleDefinition): void {

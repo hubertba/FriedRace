@@ -24,10 +24,21 @@ export const createVehicleVisual = (definition: VehicleDefinition): THREE.Group 
   wheelPositions.forEach((position, index) => { root.add(mesh(`tyre-${index}`, new THREE.CylinderGeometry(0.4, 0.4, 0.28, 20), tyre, position, [0, 0, Math.PI / 2])); root.add(mesh(`rim-${index}`, new THREE.CylinderGeometry(0.23, 0.23, 0.29, 12), rim, position, [0, 0, Math.PI / 2])); });
   if (definition.class !== "road") root.add(mesh("rear-spoiler", new RoundedBoxGeometry(1.5, 0.1, 0.3, 2, 0.03), trim, [0, 1.18, 1.82]));
   root.scale.set(definition.class === "offroad" ? 1.12 : definition.class === "rally" ? 1.04 : 1, definition.class === "offroad" ? 1.2 : definition.class === "rally" ? 1.08 : 1, 1);
+  root.position.y = -(0.45 + 0.06 * root.scale.y);
   return root;
 };
 
-export const disposeVehicleVisual = (visual: THREE.Object3D): void => visual.traverse((object) => { if (object instanceof THREE.Mesh) { object.geometry.dispose(); const materials = Array.isArray(object.material) ? object.material : [object.material]; materials.forEach((material) => material.dispose()); } });
+export const disposeVehicleVisual = (visual: THREE.Object3D): void => {
+  const geometries = new Set<THREE.BufferGeometry>();
+  const materials = new Set<THREE.Material>();
+  visual.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    geometries.add(object.geometry);
+    for (const material of Array.isArray(object.material) ? object.material : [object.material]) materials.add(material);
+  });
+  geometries.forEach((geometry) => geometry.dispose());
+  materials.forEach((material) => material.dispose());
+};
 
 export const loadOptionalVehicleVisual = async (url: string, load: (url: string) => Promise<THREE.Object3D>): Promise<THREE.Object3D | null> => {
   try { return await load(url); } catch { return null; }

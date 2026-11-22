@@ -29,3 +29,14 @@ test("returns finite empty geometry for zero-length segments", () => {
   expect(Object.values(geometries).every((geometry)=>geometry.getAttribute("position").count===0)).toBe(true);
   expect(Object.values(geometries).every(finite)).toBe(true);
 });
+
+test("omits malformed roads while keeping valid siblings", () => {
+  const geometries = buildRoadGeometries(tile([
+    road({ id: "bad", width: Number.NaN, points: [{ x: 0, z: 0 }, { x: 1e9, z: 0 }] }),
+    { id: "missing", name: "Missing", highway: "primary", width: 8 } as TiledRoad,
+    road({ id: "ok", points: [{ x: 0, z: 20 }, { x: 40, z: 20 }] }),
+  ]));
+  expect(geometries.surface.getAttribute("position").count).toBeGreaterThan(0);
+  expect(Object.values(geometries).every(finite)).toBe(true);
+  Object.values(geometries).forEach((geometry) => geometry.dispose());
+});

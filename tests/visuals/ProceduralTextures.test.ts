@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import * as THREE from "three";
-import { createAsphaltTexture, createGrassTexture } from "../../src/visuals/ProceduralTextures";
+import { createAsphaltTexture, createGrassTexture, setTextureWorldRepeat } from "../../src/visuals/ProceduralTextures";
 
 describe("createGrassTexture", () => {
   test("creates a deterministic repeating sRGB texture", () => {
@@ -15,6 +15,8 @@ describe("createGrassTexture", () => {
     first.dispose(); second.dispose();
   });
 });
+
+test("scales grass repetition in world metres",()=>{const texture=createGrassTexture(32);setTextureWorldRepeat(texture,6240,8040,8);expect(texture.repeat.x).toBe(780);expect(texture.repeat.y).toBe(1005);texture.dispose();});
 
 test("creates a deterministic repeating asphalt texture", () => {
   const texture = createAsphaltTexture(32);

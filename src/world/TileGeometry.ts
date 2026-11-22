@@ -72,7 +72,7 @@ export const buildBuildingGeometries = (tile: MapTile): { foundations: THREE.Buf
       const facadeColor = new THREE.Color(building.facadeColor); const foundationColor = new THREE.Color("#77736b"); const windowColor = new THREE.Color("#27343c"); const eave = supportsPitchedRoof(building) ? Math.max(building.minHeight + 0.5, building.height - building.roofHeight) : building.height; const outer = normalizeRing(building.outer, true); const inners = building.inners.map((ring) => normalizeRing(ring, false));
       for (let index = 1; index < outer.length; index += 1) { const start=outer[index-1]!; const end=outer[index]!; quad(foundationPositions,foundationColors,{x:start.x,y:building.minHeight,z:start.z},{x:end.x,y:building.minHeight,z:end.z},{x:end.x,y:building.minHeight+.45,z:end.z},{x:start.x,y:building.minHeight+.45,z:start.z},foundationColor); }
       for (const ring of [outer, ...inners]) for (let index = 1; index < ring.length; index += 1) {
-        const start = ring[index - 1]!; const end = ring[index]!; const bottom = building.minHeight;
+        const start = ring[index - 1]!; const end = ring[index]!; const bottom = ring === outer ? building.minHeight + 0.45 : building.minHeight;
         quad(wallPositions, wallColors, {x:start.x,y:bottom,z:start.z}, {x:end.x,y:bottom,z:end.z}, {x:end.x,y:eave,z:end.z}, {x:start.x,y:eave,z:start.z}, facadeColor);
       }
       roofs.push(roofGeometry(building, wallPositions, wallColors));

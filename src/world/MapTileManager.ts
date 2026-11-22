@@ -20,7 +20,7 @@ export interface MapTileManagerOptions {
   onWarning?: (message: string) => void;
 }
 
-const disposeTileOwnedGeometries = (group: THREE.Object3D): void => group.traverse((object) => { if (object instanceof THREE.Mesh && !object.userData.sharedResource) object.geometry.dispose(); });
+const disposeTileObjects = (group: THREE.Object3D): void => group.traverse((object) => { if (object instanceof THREE.InstancedMesh) { object.dispose(); if (!object.userData.sharedResource) object.geometry.dispose(); } else if (object instanceof THREE.Mesh && !object.userData.sharedResource) object.geometry.dispose(); });
 const pointSegmentDistance = (point: MapPoint, a: MapPoint, b: MapPoint): number => {
   const dx = b.x - a.x; const dz = b.z - a.z; const squared = dx * dx + dz * dz;
   const t = squared ? Math.max(0, Math.min(1, ((point.x - a.x) * dx + (point.z - a.z) * dz) / squared)) : 0;
@@ -32,6 +32,8 @@ export class MapTileManager {
   private readonly loading = new Set<string>();
   private readonly failed = new Set<string>();
   private desiredIds = new Set<string>();
+  private decorationKey = "";
+  private decorationNames: string[] = [];
   private disposed = false;
   private readonly assetLibrary = new WorldAssetLibrary();
   private readonly asphaltTexture = createAsphaltTexture();
@@ -47,7 +49,7 @@ export class MapTileManager {
   get loadedBuildingCount(): number { return [...this.loaded.values()].reduce((sum, entry) => sum + entry.tile.buildings.length, 0); }
   get loadedBuildingLayerNames(): string[] { return this.loaded.size ? ["building-foundations", "building-walls", "building-roofs", "building-windows"] : []; }
   get loadedRoadLayerNames(): string[] { return this.loaded.size ? ["road-surface", "road-shoulders", "road-markings"] : []; }
-  get loadedDecorationLayerNames(): string[] { const names = new Set<string>(); for (const { group } of this.loaded.values()) group.traverse((object) => { if (object.name.startsWith("decoration-")) names.add(object.name); }); return [...names]; }
+  get loadedDecorationLayerNames(): string[] { return [...this.decorationNames]; }
   tileIdAt(position: MapPoint): string {
     const { grid } = this.options.manifest;
     return `${Math.floor((position.x - grid.minX) / grid.tileSize)}-${Math.floor((position.z - grid.minZ) / grid.tileSize)}`;
@@ -79,35 +81,55 @@ export class MapTileManager {
         const roofs = new THREE.Mesh(buildingGeometries.roofs, this.roofMaterial); roofs.castShadow = true; roofs.receiveShadow = true; roofs.name = "building-roofs";
         const windows = new THREE.Mesh(buildingGeometries.windows, this.windowMaterial); windows.receiveShadow = true; windows.name = "building-windows";
         group.add(shoulders, roads, markings, foundations, walls, roofs, windows);
-        try { group.add(this.assetLibrary.createTileDecoration(planTileDecoration(tile, this.options.manifest.grid.tileSize))); } catch (error) { this.options.onWarning?.(`Map tile ${tile.id} decoration failed: ${error instanceof Error ? error.message : String(error)}`); }
         const colliders: unknown[] = [];
         try {
           for (const building of tile.buildings) { const handle = this.options.physics.addBuildingCollider(building); if (handle != null) colliders.push(handle); }
-          if (this.disposed || !this.desiredIds.has(descriptor.id)) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); disposeTileOwnedGeometries(group); return; }
+          if (this.disposed || !this.desiredIds.has(descriptor.id)) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); disposeTileObjects(group); return; }
           this.options.scene.add(group); this.loaded.set(tile.id, { tile, group, colliders }); this.failed.delete(descriptor.id);
-        } catch (error) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); disposeTileOwnedGeometries(group); throw error; }
+        } catch (error) { colliders.forEach((handle) => this.options.physics.removeCollider(handle)); disposeTileObjects(group); throw error; }
       } catch (error) { this.failed.add(descriptor.id); this.options.onWarning?.(`Map tile ${descriptor.id} failed: ${error instanceof Error ? error.message : String(error)}`); }
       finally { this.loading.delete(descriptor.id); }
     }));
+    if (!this.disposed) this.refreshDecorations(position);
   }
 
   isOnRoad(point: MapPoint): boolean {
-    for (const { tile } of this.loaded.values()) for (const road of tile.roads) for (let index = 1; index < road.points.length; index += 1) {
-      if (pointSegmentDistance(point, road.points[index - 1]!, road.points[index]!) <= road.width / 2 + 1) return true;
-    }
+    for (const { tile } of this.loaded.values()) for (const road of tile.roads) { if (!Array.isArray(road?.points) || !Number.isFinite(road.width)) continue; for (let index = 1; index < road.points.length; index += 1) {
+      const a=road.points[index-1]!,b=road.points[index]!;if(!Number.isFinite(a?.x)||!Number.isFinite(a?.z)||!Number.isFinite(b?.x)||!Number.isFinite(b?.z))continue;if (pointSegmentDistance(point, a, b) <= road.width / 2 + 1) return true;
+    } }
     return false;
   }
 
   dispose(): void {
-    this.disposed = true; this.desiredIds.clear();
+    if (this.disposed) return; this.disposed = true; this.desiredIds.clear();
     for (const [id, tile] of [...this.loaded]) this.unload(id, tile);
     this.assetLibrary.dispose(); this.roadMaterial.dispose(); this.shoulderMaterial.dispose(); this.markingMaterial.dispose(); this.asphaltTexture.dispose(); this.foundationMaterial.dispose(); this.wallMaterial.dispose(); this.roofMaterial.dispose(); this.windowMaterial.dispose();
   }
 
   private unload(id: string, loaded: LoadedTile): void {
     this.options.scene.remove(loaded.group);
-    disposeTileOwnedGeometries(loaded.group);
+    disposeTileObjects(loaded.group);
     loaded.colliders.forEach((handle) => this.options.physics.removeCollider(handle));
-    this.loaded.delete(id);
+    this.loaded.delete(id); this.decorationKey = "";
+  }
+
+  private refreshDecorations(position: MapPoint): void {
+    const key = `${this.tileIdAt(position)}|${[...this.loaded.keys()].sort().join(",")}`;
+    if (key === this.decorationKey) return;
+    this.decorationKey = key;
+    const exclusionTiles = [...this.loaded.values()].map((entry) => entry.tile);
+    const names = new Set<string>();
+    for (const loaded of this.loaded.values()) {
+      const existing = loaded.group.getObjectByName("tile-decoration");
+      if (existing) { loaded.group.remove(existing); disposeTileObjects(existing); }
+      try {
+        const decoration = this.assetLibrary.createTileDecoration(planTileDecoration(loaded.tile, this.options.manifest.grid.tileSize, { exclusionTiles }));
+        loaded.group.add(decoration);
+        for (const child of decoration.children) if (child.name.startsWith("decoration-")) names.add(child.name);
+      } catch (error) {
+        this.options.onWarning?.(`Map tile ${loaded.tile.id} decoration failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    this.decorationNames = [...names];
   }
 }
