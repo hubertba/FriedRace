@@ -6,7 +6,7 @@ export interface ImportedBuilding { id: string; name?: string; outer: MapPoint[]
 export interface ConvertedBatch { roads: TiledRoad[]; buildings: ImportedBuilding[]; towns: Array<MapPoint & { name: string }>; }
 export interface TileGrid { minX: number; minZ: number; tileSize: number; columns: number; rows: number; }
 export interface MapTile { version: 2; id: string; x: number; z: number; bounds: { minX: number; maxX: number; minZ: number; maxZ: number }; roads: TiledRoad[]; buildings: ImportedBuilding[]; }
-export interface MapManifest { version: 2; attribution: string; attributionUrl: string; projection?: ProjectionConfig; grid: TileGrid; tiles: Array<{ id: string; x: number; z: number; url: string }>; towns: ConvertedBatch["towns"]; spawn: MapPoint; overviewRoads: TiledRoad[]; }
+export interface MapManifest { version: 2; attribution: string; attributionUrl: string; projection?: ProjectionConfig; grid: TileGrid; tiles: Array<{ id: string; x: number; z: number; url: string }>; towns: ConvertedBatch["towns"]; spawn: MapPoint; garage?: MapPoint; overviewRoads: TiledRoad[]; }
 
 const ROAD_CLASSES = new Set(["motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "living_street", "service"]);
 const isNode = (value: unknown): value is OsmNode => (value as OsmNode)?.type === "node" && Number.isFinite((value as OsmNode).lat) && Number.isFinite((value as OsmNode).lon);
@@ -137,6 +137,18 @@ export const convertOsmBatch = (input: OverpassData, projection: ProjectionConfi
   return { roads, buildings: [...standaloneBuildings, ...relationBuildings], towns };
 };
 
+export const nearestRoadPoint = (roads: TiledRoad[], origin: MapPoint): { point: MapPoint; distance: number } => {
+  let nearest = { point: { ...origin }, distance: Number.POSITIVE_INFINITY };
+  for (const road of roads) for (let index = 1; index < road.points.length; index += 1) {
+    const start = road.points[index - 1]!; const end = road.points[index]!; const dx = end.x - start.x; const dz = end.z - start.z; const lengthSquared = dx * dx + dz * dz;
+    const t = lengthSquared ? Math.max(0, Math.min(1, ((origin.x - start.x) * dx + (origin.z - start.z) * dz) / lengthSquared)) : 0;
+    const point = { x: round(start.x + t * dx), z: round(start.z + t * dz) }; const distance = Math.hypot(point.x - origin.x, point.z - origin.z);
+    if (distance < nearest.distance) nearest = { point, distance };
+  }
+  if (!Number.isFinite(nearest.distance)) throw new Error("No drivable road available for spawn");
+  return nearest;
+};
+
 const boundsOfPoints = (points: MapPoint[]): { minX: number; maxX: number; minZ: number; maxZ: number } => ({
   minX: Math.min(...points.map((point) => point.x)), maxX: Math.max(...points.map((point) => point.x)),
   minZ: Math.min(...points.map((point) => point.z)), maxZ: Math.max(...points.map((point) => point.z)),
@@ -170,9 +182,9 @@ export const assignFeaturesToTiles = (batch: ConvertedBatch, grid: TileGrid): Ma
   return tiles;
 };
 
-export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"], spawn: MapPoint = { x: 0, z: 0 }, projection?: ProjectionConfig, sourceRoads?: TiledRoad[]): MapManifest => {
+export const buildManifest = (tiles: MapTile[], grid: TileGrid, towns: ConvertedBatch["towns"], spawn: MapPoint = { x: 0, z: 0 }, projection?: ProjectionConfig, sourceRoads?: TiledRoad[], garage: MapPoint = spawn): MapManifest => {
   const roads = sourceRoads ?? [...new Map(tiles.flatMap((tile) => tile.roads).map((road) => [road.id, road])).values()];
-  return { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", projection, grid, tiles: tiles.map((tile) => ({ id: tile.id, x: tile.x, z: tile.z, url: `/map/tile-${tile.id}.json` })), towns, spawn, overviewRoads: roads.map((road) => ({ ...road, points: road.points.filter((_, index) => index === 0 || index === road.points.length - 1 || index % 4 === 0) })) };
+  return { version: 2, attribution: "© OpenStreetMap contributors", attributionUrl: "https://www.openstreetmap.org/copyright", projection, grid, tiles: tiles.map((tile) => ({ id: tile.id, x: tile.x, z: tile.z, url: `/map/tile-${tile.id}.json` })), towns, spawn, garage, overviewRoads: roads.map((road) => ({ ...road, points: road.points.filter((_, index) => index === 0 || index === road.points.length - 1 || index % 4 === 0) })) };
 };
 
 export const validateMapTile = (value: unknown): MapTile | null => {

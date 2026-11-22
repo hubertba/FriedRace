@@ -43,10 +43,11 @@ export const createWorld = async (scene: THREE.Scene, physics: RAPIER.World): Pr
   physics.createCollider(RAPIER.ColliderDesc.cuboid(1, wallHeight, depth / 2).setTranslation(bounds.minX, wallHeight, centerZ));
   physics.createCollider(RAPIER.ColliderDesc.cuboid(1, wallHeight, depth / 2).setTranslation(bounds.maxX, wallHeight, centerZ));
 
+  const garagePoint = manifest.garage ?? manifest.spawn;
   let warning = ""; let garageBuildingId: string | undefined;
   const manager = new MapTileManager({ manifest, scene, loadTile: async (url) => { const tileResponse = await fetch(url); if (!tileResponse.ok) throw new Error(`${tileResponse.status}`); return tileResponse.json(); }, physics: { addBuildingCollider: (building) => {
     const xs = building.outer.map((point) => point.x); const zs = building.outer.map((point) => point.z);
-    const containsGarage = manifest.spawn.x >= Math.min(...xs) - 1 && manifest.spawn.x <= Math.max(...xs) + 1 && manifest.spawn.z >= Math.min(...zs) - 1 && manifest.spawn.z <= Math.max(...zs) + 1;
+    const containsGarage = garagePoint.x >= Math.min(...xs) - 1 && garagePoint.x <= Math.max(...xs) + 1 && garagePoint.z >= Math.min(...zs) - 1 && garagePoint.z <= Math.max(...zs) + 1;
     if (containsGarage && !garageBuildingId) garageBuildingId = building.id;
     return building.id === garageBuildingId ? null : colliderForBuilding(physics, building);
   }, removeCollider: (handle) => physics.removeCollider(handle as RAPIER.Collider, true) }, onWarning: (message) => { warning = message; } });
@@ -55,7 +56,7 @@ export const createWorld = async (scene: THREE.Scene, physics: RAPIER.World): Pr
 
   const markerGeometry = new THREE.CylinderGeometry(2, 3, 8, 8);
   for (const town of manifest.towns) { const marker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0xffc107 })); marker.position.set(town.x, 4, town.z); marker.name = town.name; scene.add(marker); }
-  const garage = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 10), new THREE.MeshStandardMaterial({ color: 0x263238 })); garage.position.set(spawn.x + 10, 3, spawn.z + 8); garage.name = "Garage"; scene.add(garage);
+  const garage = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 10), new THREE.MeshStandardMaterial({ color: 0x263238 })); garage.position.set(garagePoint.x + 10, 3, garagePoint.z + 8); garage.name = "Garage"; scene.add(garage);
   const rally = createStarterRally({ x: spawn.x, z: spawn.z }); const gatePoints = [rally.start, ...rally.checkpoints, rally.finish]; const rallyGates: THREE.Mesh[] = [];
   gatePoints.forEach((point, index) => { const gate = new THREE.Mesh(new THREE.TorusGeometry(index === 0 || index === gatePoints.length - 1 ? 8 : 5, 0.7, 8, 32), new THREE.MeshStandardMaterial({ color: index === 0 ? 0xff5722 : 0x29b6f6 })); gate.rotation.x = Math.PI / 2; gate.position.set(point.x, 1.2, point.z); scene.add(gate); rallyGates.push(gate); });
 

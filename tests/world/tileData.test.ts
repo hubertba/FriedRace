@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import fixture from "../fixtures/osm-buildings.json";
-import { assignFeaturesToTiles, buildManifest, convertOsmBatch, validateMapManifest, validateMapTile } from "../../src/world/tileData";
+import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, validateMapManifest, validateMapTile } from "../../src/world/tileData";
 
 const projection = { originLat: 47.2, originLon: 16.1, compression: 0.035 };
 
@@ -78,10 +78,17 @@ test("checked-in Unterwart assets contain real streets, buildings, and the addre
   const manifest = JSON.parse(await readFile("public/map/manifest.json", "utf8"));
   expect(validateMapManifest(manifest)).not.toBeNull();
   expect(manifest.towns.some((town: { name: string }) => town.name.includes("Unterwart"))).toBe(true);
-  expect(manifest.spawn).toEqual({ x: 0, z: 0 });
+  expect(manifest.garage).toEqual({ x: 0, z: 0 });
   const tiles = await Promise.all(manifest.tiles.map(async (descriptor: { url: string }) => JSON.parse(await readFile(`public${descriptor.url}`, "utf8"))));
+  const roads = tiles.flatMap((tile: { roads: Parameters<typeof nearestRoadPoint>[0] }) => tile.roads);
+  expect(nearestRoadPoint(roads, manifest.spawn).distance).toBeLessThan(0.1);
   expect(tiles.reduce((sum: number, tile: { buildings: unknown[] }) => sum + tile.buildings.length, 0)).toBeGreaterThan(100);
   expect(tiles.flatMap((tile: { roads: Array<{ highway: string }> }) => tile.roads).some((road: { highway: string }) => road.highway === "residential" || road.highway === "service")).toBe(true);
+});
+
+test("projects the vehicle spawn onto the nearest drivable road", () => {
+  const roads = [{ id: "road", name: "Road", highway: "residential", width: 7, points: [{ x: -20, z: -10 }, { x: 20, z: -10 }] }];
+  expect(nearestRoadPoint(roads, { x: 0, z: 0 })).toEqual({ point: { x: 0, z: -10 }, distance: 10 });
 });
 
 test("assigns each boundary feature to one owning tile without duplicates", () => {

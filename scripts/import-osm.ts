@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { XMLParser } from "fast-xml-parser";
 import { convertOsmToMap, validateImportedMap, type OverpassResponse } from "../src/world/mapData";
-import { assignFeaturesToTiles, buildManifest, convertOsmBatch, validateMapManifest, validateMapTile, type MapManifest, type MapTile, type TileGrid } from "../src/world/tileData";
+import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, validateMapManifest, validateMapTile, type MapManifest, type MapTile, type TileGrid } from "../src/world/tileData";
 import type { OverpassData } from "../src/world/osmTypes";
 
 const ENDPOINTS = ["https://overpass-api.de/api/interpreter", "https://overpass.kumi.systems/api/interpreter", "https://overpass.nchc.org.tw/api/interpreter"];
@@ -127,7 +127,8 @@ export const importUnterwart = async (outputDir: string, fetcher: typeof fetch =
   const maxZ = Math.ceil(Math.max(...allPoints.map((point) => point.z)) / tileSize) * tileSize;
   const grid: TileGrid = { minX, minZ, tileSize, columns: Math.max(1, Math.ceil((maxX - minX) / tileSize)), rows: Math.max(1, Math.ceil((maxZ - minZ) / tileSize)) };
   const tiles = assignFeaturesToTiles(converted, grid).filter((tile) => tile.roads.length || tile.buildings.length);
-  const manifest = buildManifest(tiles, grid, converted.towns, { x: 0, z: 0 }, PHASE_ONE_PROJECTION, converted.roads);
+  const garage = { x: 0, z: 0 }; const spawn = nearestRoadPoint(converted.roads, garage).point;
+  const manifest = buildManifest(tiles, grid, converted.towns, spawn, PHASE_ONE_PROJECTION, converted.roads, garage);
   await publishMapDirectory(outputDir, manifest, tiles);
   console.log(`Published ${tiles.length} Unterwart map tiles with ${converted.roads.length} roads and ${converted.buildings.length} buildings.`);
 };
