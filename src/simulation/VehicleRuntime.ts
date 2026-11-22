@@ -1,6 +1,7 @@
 import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import type { VehicleDefinition } from "../domain/types";
+import { createVehicleVisual, disposeVehicleVisual } from "../visuals/VehicleVisual";
 import { stepArcadeVehicle, type DriveInput } from "./ArcadeVehicle";
 
 export const FIXED_STEP = 1 / 60;
@@ -19,7 +20,8 @@ export const consumeFixedSteps = (accumulator: number, elapsed: number): { steps
 };
 
 export class VehicleRuntime {
-  readonly object: THREE.Mesh;
+  readonly object = new THREE.Group();
+  private visual: THREE.Group;
   private speed = 0;
   private heading = 0;
 
@@ -29,13 +31,7 @@ export class VehicleRuntime {
     private readonly spawn: THREE.Vector3,
     private vehicle: VehicleDefinition,
   ) {
-    this.object = new THREE.Mesh(
-      new THREE.BoxGeometry(2, 0.9, 4.2),
-      new THREE.MeshStandardMaterial({ color: 0xc62828, metalness: 0.35, roughness: 0.45 }),
-    );
-    this.object.castShadow = true;
-    scene.add(this.object);
-    this.reset();
+    this.object.name = "vehicle-root"; this.visual = createVehicleVisual(vehicle); this.object.add(this.visual); scene.add(this.object); this.reset();
   }
 
   update(input: DriveInput, dt: number, onRoad = true): void {
@@ -81,11 +77,10 @@ export class VehicleRuntime {
   }
 
   setVehicle(vehicle: VehicleDefinition): void {
-    this.vehicle = vehicle;
-    this.object.scale.set(vehicle.class === "offroad" ? 1.15 : 1, vehicle.class === "offroad" ? 1.25 : 1, 1);
-    this.reset();
+    this.vehicle = vehicle; this.object.remove(this.visual); disposeVehicleVisual(this.visual); this.visual = createVehicleVisual(vehicle); this.object.add(this.visual); this.reset();
   }
 
+  dispose(): void { this.object.removeFromParent(); disposeVehicleVisual(this.visual); }
   speedKph(): number { return this.speed * 3.6; }
   position(): THREE.Vector3 { return this.object.position.clone(); }
 

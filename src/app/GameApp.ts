@@ -324,6 +324,7 @@ export class GameApp {
     this.keyboard?.dispose();
     if (this.resizeHandler) removeEventListener("resize", this.resizeHandler);
     if (this.mapKeyHandler) removeEventListener("keydown", this.mapKeyHandler);
+    this.vehicle?.dispose();
     this.world?.dispose();
     this.renderer?.dispose();
     this.physics?.free();
