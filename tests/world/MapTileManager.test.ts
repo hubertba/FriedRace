@@ -14,18 +14,19 @@ test("loads a 3x3 neighborhood without duplicates and unloads distant tiles", as
   expect(manager.loadedTileIds).toHaveLength(9);
   expect(manager.loadedBuildingLayerNames.sort()).toEqual(["building-roofs", "building-walls", "building-windows"]);
   expect(manager.loadedRoadLayerNames.sort()).toEqual(["road-markings", "road-shoulders", "road-surface"]);
+  expect(manager.loadedDecorationLayerNames.sort()).toEqual(["decoration-bushes", "decoration-grass", "decoration-trees"]);
   const unloadingGroup = scene.getObjectByName("map-tile-0-0")!; const buildingMeshes = ["building-walls", "building-roofs", "building-windows"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh); const roadMeshes = ["road-surface", "road-shoulders", "road-markings"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh);
   expect(buildingMeshes.every((mesh) => mesh instanceof THREE.Mesh)).toBe(true);
   expect(buildingMeshes.slice(0, 2).every((mesh) => (mesh.material as THREE.MeshStandardMaterial).vertexColors)).toBe(true);
-  expect(roadMeshes.every((mesh) => mesh instanceof THREE.Mesh)).toBe(true); const sharedRoadMaterialDispose = vi.spyOn(roadMeshes[0]!.material as THREE.Material, "dispose");
+  expect(roadMeshes.every((mesh) => mesh instanceof THREE.Mesh)).toBe(true); const sharedRoadMaterialDispose = vi.spyOn(roadMeshes[0]!.material as THREE.Material, "dispose"); const sharedTree = unloadingGroup.getObjectByName("decoration-trees") as THREE.InstancedMesh; expect(sharedTree).toBeInstanceOf(THREE.InstancedMesh); const sharedTreeGeometryDispose = vi.spyOn(sharedTree.geometry, "dispose");
   const disposals = [...buildingMeshes, ...roadMeshes].map((mesh) => vi.spyOn(mesh.geometry, "dispose"));
   await manager.update({ x: 150, z: 150 });
   expect(loads).toHaveLength(9);
   await manager.update({ x: 350, z: 350 });
   expect(manager.loadedTileIds.sort()).toEqual(["2-2", "2-3", "3-2", "3-3"]);
   expect(removed.length).toBeGreaterThan(0);
-  expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true); expect(sharedRoadMaterialDispose).not.toHaveBeenCalled();
-  manager.dispose(); expect(sharedRoadMaterialDispose).toHaveBeenCalledOnce();
+  expect(disposals.every((dispose) => dispose.mock.calls.length === 1)).toBe(true); expect(sharedRoadMaterialDispose).not.toHaveBeenCalled(); expect(sharedTreeGeometryDispose).not.toHaveBeenCalled();
+  manager.dispose(); expect(sharedRoadMaterialDispose).toHaveBeenCalledOnce(); expect(sharedTreeGeometryDispose).toHaveBeenCalledOnce();
   expect(manager.loadedTileIds).toHaveLength(0);
 });
 

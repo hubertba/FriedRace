@@ -61,7 +61,7 @@ export class GameApp {
     const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 2500);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    configureRenderer(this.renderer);
+    configureRenderer(this.renderer, new URLSearchParams(location.search).get("e2e") !== "1");
 
     const body = physics.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()

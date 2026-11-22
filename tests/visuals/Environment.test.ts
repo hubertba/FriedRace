@@ -6,10 +6,12 @@ test("configures filmic desktop rendering", () => {
   const renderer = { shadowMap: { enabled: false, type: 0 }, toneMapping: 0, toneMappingExposure: 0, outputColorSpace: "" } as unknown as THREE.WebGLRenderer;
   configureRenderer(renderer);
   expect(renderer.shadowMap.enabled).toBe(true);
-  expect(renderer.shadowMap.type).toBe(THREE.PCFSoftShadowMap);
+  expect(renderer.shadowMap.type).toBe(THREE.PCFShadowMap);
   expect(renderer.toneMapping).toBe(THREE.ACESFilmicToneMapping);
   expect(renderer.toneMappingExposure).toBeGreaterThan(1);
   expect(renderer.outputColorSpace).toBe(THREE.SRGBColorSpace);
+  const lowGraphics = { shadowMap: { enabled: true, type: 0 }, toneMapping: 0, toneMappingExposure: 0, outputColorSpace: "" } as unknown as THREE.WebGLRenderer;
+  configureRenderer(lowGraphics, false); expect(lowGraphics.shadowMap.enabled).toBe(false);
 });
 
 test("creates and disposes a warm sky and shadow-casting sun", () => {
