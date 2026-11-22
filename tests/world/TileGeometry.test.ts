@@ -1,16 +1,46 @@
+import * as THREE from "three";
 import { expect, test } from "vitest";
-import { buildBuildingGeometry, buildRoadGeometry } from "../../src/world/TileGeometry";
-import type { MapTile } from "../../src/world/tileData";
+import { buildBuildingGeometries, buildRoadGeometry } from "../../src/world/TileGeometry";
+import type { ImportedBuilding, MapTile } from "../../src/world/tileData";
 
-const tile: MapTile = { version: 2, id: "0-0", x: 0, z: 0, bounds: { minX: 0, maxX: 100, minZ: 0, maxZ: 100 }, roads: [{ id: "r", name: "Street", highway: "residential", width: 6, points: [{ x: 0, z: 0 }, { x: 50, z: 0 }] }], buildings: [{ id: "b", outer: [{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }, { x: 10, z: 10 }], inners: [[{ x: 13, z: 13 }, { x: 15, z: 13 }, { x: 15, z: 15 }, { x: 13, z: 15 }, { x: 13, z: 13 }]], height: 9, minHeight: 0, levels: 3, buildingType: "house", facadeMaterial: "plaster", facadeColor: "#d8b28f", roofShape: "gabled", roofMaterial: "tiles", roofColor: "#934b3d", roofHeight: 2.4 }] };
+const building = (overrides: Partial<ImportedBuilding>): ImportedBuilding => ({
+  id: "house", outer: [{ x: 10, z: 10 }, { x: 22, z: 10 }, { x: 22, z: 18 }, { x: 10, z: 18 }, { x: 10, z: 10 }], inners: [],
+  height: 9, minHeight: 0, levels: 2, buildingType: "house", facadeMaterial: "plaster", facadeColor: "#d8b28f", roofShape: "gabled", roofMaterial: "tiles", roofColor: "#934b3d", roofHeight: 2.4,
+  ...overrides,
+});
+const tile = (buildings: ImportedBuilding[]): MapTile => ({ version: 2, id: "0-0", x: 0, z: 0, bounds: { minX: 0, maxX: 100, minZ: 0, maxZ: 100 }, roads: [{ id: "r", name: "Street", highway: "residential", width: 6, points: [{ x: 0, z: 0 }, { x: 50, z: 0 }] }], buildings });
+const finiteAttribute = (geometry: THREE.BufferGeometry, name: string) => Array.from(geometry.getAttribute(name).array).every(Number.isFinite);
 
-test("builds merged road and extruded building geometry", () => {
-  const roads = buildRoadGeometry(tile);
-  const buildings = buildBuildingGeometry(tile);
-  expect(roads.getAttribute("position").count).toBeGreaterThan(0);
+test("builds merged road geometry with upward normals", () => {
+  const roads = buildRoadGeometry(tile([]));
   const normals = roads.getAttribute("normal");
+  expect(roads.getAttribute("position").count).toBeGreaterThan(0);
   expect(Array.from({ length: normals.count }, (_, index) => normals.getY(index)).every((value) => value > 0.9)).toBe(true);
-  expect(buildings.getAttribute("position").count).toBeGreaterThan(0);
-  expect(buildings.boundingBox?.max.y ?? 0).toBeGreaterThan(0);
-  roads.dispose(); buildings.dispose();
+  roads.dispose();
+});
+
+test("builds coloured walls, pitched roofs, and bounded residential windows", () => {
+  const geometries = buildBuildingGeometries(tile([
+    building({ id: "gabled" }),
+    building({ id: "hipped", outer: [{x:30,z:10},{x:42,z:10},{x:42,z:20},{x:30,z:20},{x:30,z:10}], roofShape: "hipped", roofColor: "#55585b" }),
+    building({ id: "courtyard", outer: [{x:10,z:30},{x:28,z:30},{x:28,z:48},{x:10,z:48},{x:10,z:30}], inners: [[{x:16,z:36},{x:22,z:36},{x:22,z:42},{x:16,z:42},{x:16,z:36}]], roofShape: "flat", roofHeight: 0.35 }),
+  ]));
+  expect(geometries.walls.getAttribute("position").count).toBeGreaterThan(0);
+  expect(geometries.roofs.getAttribute("position").count).toBeGreaterThan(0);
+  expect(geometries.windows.getAttribute("position").count).toBeGreaterThan(0);
+  expect(finiteAttribute(geometries.walls, "position") && finiteAttribute(geometries.walls, "color")).toBe(true);
+  expect(finiteAttribute(geometries.roofs, "position") && finiteAttribute(geometries.roofs, "color")).toBe(true);
+  geometries.roofs.computeBoundingBox();
+  expect(geometries.roofs.boundingBox!.max.y).toBeGreaterThan(6.6);
+  geometries.windows.computeBoundingBox();
+  expect(geometries.windows.boundingBox!.min.y).toBeGreaterThan(0);
+  Object.values(geometries).forEach((geometry) => geometry.dispose());
+});
+
+test("omits windows for garages", () => {
+  const geometries = buildBuildingGeometries(tile([building({ id: "garage", buildingType: "garage", height: 3.5, levels: 1, roofShape: "flat", roofHeight: 0.35 })]));
+  expect(geometries.walls.getAttribute("position").count).toBeGreaterThan(0);
+  expect(geometries.roofs.getAttribute("position").count).toBeGreaterThan(0);
+  expect(geometries.windows.getAttribute("position").count).toBe(0);
+  Object.values(geometries).forEach((geometry) => geometry.dispose());
 });
