@@ -5,7 +5,7 @@ export const STARTER_VEHICLE_ID = "mitsubishi-eclipse-1995";
 export const VEHICLES: VehicleDefinition[] = [
   {
     id: STARTER_VEHICLE_ID,
-    name: "Mitsubishi Eclipse 1995",
+    name: "Sunset GT 1995",
     price: 24_000,
     class: "road",
     topSpeedKph: 210,
@@ -14,7 +14,7 @@ export const VEHICLES: VehicleDefinition[] = [
     steering: 1,
     offroadGrip: 0.45,
     rarity: 1,
-    modelKey: "eclipse-placeholder",
+    modelKey: "sunset-gt-generated",
   },
   {
     id: "alpine-rally-rs",

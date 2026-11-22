@@ -6,7 +6,7 @@ test("completes the MVP economy, garage, waypoint, persistence, and rally flow",
   await page.reload();
   await expect(page.getByTestId("loading-status")).toBeHidden({ timeout: 20_000 });
   await expect(page.getByTestId("money")).toHaveText("€30,000");
-  await expect(page.getByTestId("active-vehicle")).toContainText("Mitsubishi Eclipse 1995");
+  await expect(page.getByTestId("active-vehicle")).toContainText("Sunset GT 1995");
 
   await page.keyboard.down("w");
   await expect.poll(async () => Number((await page.getByTestId("speed").textContent())?.replace(/\D/g, ""))).toBeGreaterThan(0);

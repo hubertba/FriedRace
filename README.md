@@ -1,6 +1,6 @@
 # Fried Race
 
-Ein kleines webbasiertes 3D-Arcade-Rennspiel mit lokal gespeicherten OpenStreetMap-Straßen und Gebäuden für Unterwart. Garage und Startpunkt liegen bei Dr.-Galambos-Gasse 12.
+Ein webbasiertes 3D-Arcade-Rennspiel mit lokal gespeicherten OpenStreetMap-Straßen und Gebäuden für Unterwart. Eine warme Spätnachmittagsbeleuchtung, ein eigenständiges 90er-Jahre-Coupé, strukturierte Straßen, Vegetation und regionale Straßendetails sorgen für eine Forza-inspirierte Präsentation. Garage und Startpunkt liegen bei Dr.-Galambos-Gasse 12.
 
 ## Starten
 
@@ -24,7 +24,7 @@ Den angezeigten lokalen Link in einem aktuellen Desktop-Browser öffnen.
 
 ## Spielablauf
 
-Der Spielstand beginnt mit 30.000 Euro und einem stilisierten Mitsubishi Eclipse von 1995. Wegpunkt-Zeitfahrten bringen Geld. In der Garage können weitere Fahrzeuge gekauft und ausgewählt werden. Die Rallye akzeptiert nur Rallye- und Geländefahrzeuge und vergibt Geld sowie eine Mystery-Box. Doppelte Mystery-Fahrzeuge werden in Geld umgewandelt. Der Spielstand liegt versioniert im lokalen Browser-Speicher.
+Der Spielstand beginnt mit 30.000 Euro und dem eigenständigen, markenlosen Sportcoupé Sunset GT 1995. Wegpunkt-Zeitfahrten bringen Geld. In der Garage können weitere Fahrzeuge gekauft und ausgewählt werden. Die Rallye akzeptiert nur Rallye- und Geländefahrzeuge und vergibt Geld sowie eine Mystery-Box. Doppelte Mystery-Fahrzeuge werden in Geld umgewandelt. Der Spielstand liegt versioniert im lokalen Browser-Speicher.
 
 ## OpenStreetMap-Daten
 
@@ -44,9 +44,9 @@ npm run test:e2e
 npm run build
 ```
 
-## Assets und Marken
+## Grafik, Assets und Marken
 
-Die aktuelle Fahrzeugdarstellung besteht aus selbst erzeugten Platzhaltergeometrien. Externe Modelle, Texturen, Geräusche und Markenassets dürfen nur mit einer passenden Lizenz ergänzt werden. Der Fahrzeugname beschreibt die Spielidee; es werden keine Herstellerlogos oder fremden Modelle mitgeliefert.
+Fahrzeuge, Himmel, Gras, Asphalt, Vegetation, Straßenausstattung und Garage werden in Phase 1 vollständig aus eigenen Three.js-Geometrien und deterministisch erzeugten Texturen aufgebaut. Es werden keine Herstellerlogos, fremden Fahrzeugmodelle oder Runtime-Downloads mitgeliefert. Wiederholte Vegetation nutzt Instancing; Straßen, Gebäude und Dekoration werden gemeinsam mit der lokalen 3×3-Kartennachbarschaft gestreamt. Details zur Herkunft stehen in `public/assets/ATTRIBUTION.md`.
 
 ## Spätere Erweiterung
 

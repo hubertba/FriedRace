@@ -10,6 +10,7 @@ import { startWaypointChallenge, updateWaypointChallenge, type WaypointChallenge
 import { KeyboardInput } from "../input/KeyboardInput";
 import { consumeFixedSteps, FIXED_STEP, VehicleRuntime } from "../simulation/VehicleRuntime";
 import { configureRenderer } from "../visuals/Environment";
+import { loadOptionalVehicleVisual } from "../visuals/VehicleVisual";
 import { GarageMenu } from "../ui/GarageMenu";
 import { Hud } from "../ui/Hud";
 import { MapOverlay } from "../ui/MapOverlay";
@@ -184,6 +185,9 @@ export class GameApp {
           this.vehicle!.teleport({ x: grid.minX + (target.x + 0.5) * grid.tileSize, z: grid.minZ + (target.z + 0.5) * grid.tileSize });
         },
         targetMapTile: () => streamingTargetTile,
+        visualObjectNames: () => { const names: string[] = []; scene.traverse((object) => { if (object.name) names.push(object.name); }); return names; },
+        optionalVehicleFailureKeepsFallback: async () => (await loadOptionalVehicleVisual("/missing.glb", async () => { throw new Error("missing"); })) === null && Boolean(scene.getObjectByName("vehicle-body")),
+        sampleFrameTimes: (count: number) => new Promise<number[]>((resolve) => { const values: number[] = []; requestAnimationFrame((first) => { let previous = first; const sample = (now: number): void => { values.push(now - previous); previous = now; if (values.length >= Math.max(1, count)) resolve(values); else requestAnimationFrame(sample); }; requestAnimationFrame(sample); }); }),
         startNearbyWaypoint: () => {
           const position = this.vehicle!.position();
           waypoint = startWaypointChallenge(
