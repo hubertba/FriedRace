@@ -2,6 +2,7 @@ import RAPIER from "@dimforge/rapier3d-compat";
 import * as THREE from "three";
 import { createStarterRally } from "../content/events";
 import { createEnvironment } from "../visuals/Environment";
+import { createGarageVisual } from "../visuals/GarageVisual";
 import { createGrassTexture } from "../visuals/ProceduralTextures";
 import type { ImportedMap } from "./mapData";
 import { MapTileManager } from "./MapTileManager";
@@ -56,7 +57,7 @@ export const createWorld = async (scene: THREE.Scene, physics: RAPIER.World): Pr
 
   const markerGeometry = new THREE.CylinderGeometry(2, 3, 8, 8);
   for (const town of manifest.towns) { const marker = new THREE.Mesh(markerGeometry, new THREE.MeshStandardMaterial({ color: 0xffc107 })); marker.position.set(town.x, 4, town.z); marker.name = town.name; scene.add(marker); }
-  const garage = new THREE.Mesh(new THREE.BoxGeometry(14, 6, 10), new THREE.MeshStandardMaterial({ color: 0x263238 })); garage.position.set(garagePoint.x + 10, 3, garagePoint.z + 8); garage.name = "Garage"; scene.add(garage);
+  const garage = createGarageVisual(garagePoint); scene.add(garage);
   const rally = createStarterRally({ x: spawn.x, z: spawn.z }); const gatePoints = [rally.start, ...rally.checkpoints, rally.finish]; const rallyGates: THREE.Mesh[] = [];
   gatePoints.forEach((point, index) => { const gate = new THREE.Mesh(new THREE.TorusGeometry(index === 0 || index === gatePoints.length - 1 ? 8 : 5, 0.7, 8, 32), new THREE.MeshStandardMaterial({ color: index === 0 ? 0xff5722 : 0x29b6f6 })); gate.rotation.x = Math.PI / 2; gate.position.set(point.x, 1.2, point.z); scene.add(gate); rallyGates.push(gate); });
 

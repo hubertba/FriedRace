@@ -38,13 +38,14 @@ export class MapTileManager {
   private readonly roadMaterial = new THREE.MeshStandardMaterial({ color: 0x777b7f, map: this.asphaltTexture, roughness: 0.96 });
   private readonly shoulderMaterial = new THREE.MeshStandardMaterial({ color: 0x7d765f, roughness: 1 });
   private readonly markingMaterial = new THREE.MeshStandardMaterial({ color: 0xf0e8cf, roughness: 0.72 });
+  private readonly foundationMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96 });
   private readonly wallMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.88 });
   private readonly roofMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
   private readonly windowMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.35, metalness: 0.15 });
   constructor(private readonly options: MapTileManagerOptions) {}
   get loadedTileIds(): string[] { return [...this.loaded.keys()]; }
   get loadedBuildingCount(): number { return [...this.loaded.values()].reduce((sum, entry) => sum + entry.tile.buildings.length, 0); }
-  get loadedBuildingLayerNames(): string[] { return this.loaded.size ? ["building-walls", "building-roofs", "building-windows"] : []; }
+  get loadedBuildingLayerNames(): string[] { return this.loaded.size ? ["building-foundations", "building-walls", "building-roofs", "building-windows"] : []; }
   get loadedRoadLayerNames(): string[] { return this.loaded.size ? ["road-surface", "road-shoulders", "road-markings"] : []; }
   get loadedDecorationLayerNames(): string[] { const names = new Set<string>(); for (const { group } of this.loaded.values()) group.traverse((object) => { if (object.name.startsWith("decoration-")) names.add(object.name); }); return [...names]; }
   tileIdAt(position: MapPoint): string {
@@ -73,10 +74,11 @@ export class MapTileManager {
         const roads = new THREE.Mesh(roadGeometries.surface, this.roadMaterial); roads.receiveShadow = true; roads.name = "road-surface";
         const shoulders = new THREE.Mesh(roadGeometries.shoulders, this.shoulderMaterial); shoulders.receiveShadow = true; shoulders.name = "road-shoulders";
         const markings = new THREE.Mesh(roadGeometries.markings, this.markingMaterial); markings.receiveShadow = true; markings.name = "road-markings";
+        const foundations = new THREE.Mesh(buildingGeometries.foundations, this.foundationMaterial); foundations.receiveShadow = true; foundations.name = "building-foundations";
         const walls = new THREE.Mesh(buildingGeometries.walls, this.wallMaterial); walls.castShadow = true; walls.receiveShadow = true; walls.name = "building-walls";
         const roofs = new THREE.Mesh(buildingGeometries.roofs, this.roofMaterial); roofs.castShadow = true; roofs.receiveShadow = true; roofs.name = "building-roofs";
         const windows = new THREE.Mesh(buildingGeometries.windows, this.windowMaterial); windows.receiveShadow = true; windows.name = "building-windows";
-        group.add(shoulders, roads, markings, walls, roofs, windows);
+        group.add(shoulders, roads, markings, foundations, walls, roofs, windows);
         try { group.add(this.assetLibrary.createTileDecoration(planTileDecoration(tile, this.options.manifest.grid.tileSize))); } catch (error) { this.options.onWarning?.(`Map tile ${tile.id} decoration failed: ${error instanceof Error ? error.message : String(error)}`); }
         const colliders: unknown[] = [];
         try {
@@ -99,7 +101,7 @@ export class MapTileManager {
   dispose(): void {
     this.disposed = true; this.desiredIds.clear();
     for (const [id, tile] of [...this.loaded]) this.unload(id, tile);
-    this.assetLibrary.dispose(); this.roadMaterial.dispose(); this.shoulderMaterial.dispose(); this.markingMaterial.dispose(); this.asphaltTexture.dispose(); this.wallMaterial.dispose(); this.roofMaterial.dispose(); this.windowMaterial.dispose();
+    this.assetLibrary.dispose(); this.roadMaterial.dispose(); this.shoulderMaterial.dispose(); this.markingMaterial.dispose(); this.asphaltTexture.dispose(); this.foundationMaterial.dispose(); this.wallMaterial.dispose(); this.roofMaterial.dispose(); this.windowMaterial.dispose();
   }
 
   private unload(id: string, loaded: LoadedTile): void {

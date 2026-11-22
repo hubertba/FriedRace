@@ -19,6 +19,16 @@ test("builds merged road geometry with upward normals", () => {
   roads.dispose();
 });
 
+test("builds shallow foundation bands for both footprint windings and omits malformed rings", () => {
+  for (const outer of [
+    [{x:10,z:10},{x:22,z:10},{x:22,z:18},{x:10,z:18},{x:10,z:10}],
+    [{x:10,z:10},{x:10,z:18},{x:22,z:18},{x:22,z:10},{x:10,z:10}],
+  ]) {
+    const geometries = buildBuildingGeometries(tile([building({outer}), building({id:"malformed",outer:[]})]));
+    expect(geometries.foundations.getAttribute("position").count).toBeGreaterThan(0); geometries.foundations.computeBoundingBox(); expect(geometries.foundations.boundingBox!.min.y).toBe(0); expect(geometries.foundations.boundingBox!.max.y).toBeLessThanOrEqual(.55); Object.values(geometries).forEach((geometry)=>geometry.dispose());
+  }
+});
+
 test("builds coloured walls, pitched roofs, and bounded residential windows", () => {
   const geometries = buildBuildingGeometries(tile([
     building({ id: "gabled" }),

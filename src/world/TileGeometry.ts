@@ -64,12 +64,13 @@ const roofGeometry = (building: ImportedBuilding, wallPositions: number[], wallC
   return geometryFrom(positions, colors);
 };
 
-export const buildBuildingGeometries = (tile: MapTile): { walls: THREE.BufferGeometry; roofs: THREE.BufferGeometry; windows: THREE.BufferGeometry } => {
-  const wallPositions: number[] = []; const wallColors: number[] = []; const windowPositions: number[] = []; const windowColors: number[] = []; const roofs: THREE.BufferGeometry[] = [];
+export const buildBuildingGeometries = (tile: MapTile): { foundations: THREE.BufferGeometry; walls: THREE.BufferGeometry; roofs: THREE.BufferGeometry; windows: THREE.BufferGeometry } => {
+  const foundationPositions: number[] = []; const foundationColors: number[] = []; const wallPositions: number[] = []; const wallColors: number[] = []; const windowPositions: number[] = []; const windowColors: number[] = []; const roofs: THREE.BufferGeometry[] = [];
   const noWindows = new Set(["garage", "garages", "shed", "carport", "barn", "industrial", "warehouse", "hangar", "farm_auxiliary"]);
   for (const building of tile.buildings) {
     try {
-      const facadeColor = new THREE.Color(building.facadeColor); const windowColor = new THREE.Color("#27343c"); const eave = supportsPitchedRoof(building) ? Math.max(building.minHeight + 0.5, building.height - building.roofHeight) : building.height; const outer = normalizeRing(building.outer, true); const inners = building.inners.map((ring) => normalizeRing(ring, false));
+      const facadeColor = new THREE.Color(building.facadeColor); const foundationColor = new THREE.Color("#77736b"); const windowColor = new THREE.Color("#27343c"); const eave = supportsPitchedRoof(building) ? Math.max(building.minHeight + 0.5, building.height - building.roofHeight) : building.height; const outer = normalizeRing(building.outer, true); const inners = building.inners.map((ring) => normalizeRing(ring, false));
+      for (let index = 1; index < outer.length; index += 1) { const start=outer[index-1]!; const end=outer[index]!; quad(foundationPositions,foundationColors,{x:start.x,y:building.minHeight,z:start.z},{x:end.x,y:building.minHeight,z:end.z},{x:end.x,y:building.minHeight+.45,z:end.z},{x:start.x,y:building.minHeight+.45,z:start.z},foundationColor); }
       for (const ring of [outer, ...inners]) for (let index = 1; index < ring.length; index += 1) {
         const start = ring[index - 1]!; const end = ring[index]!; const bottom = building.minHeight;
         quad(wallPositions, wallColors, {x:start.x,y:bottom,z:start.z}, {x:end.x,y:bottom,z:end.z}, {x:end.x,y:eave,z:end.z}, {x:start.x,y:eave,z:start.z}, facadeColor);
@@ -87,8 +88,8 @@ export const buildBuildingGeometries = (tile: MapTile): { walls: THREE.BufferGeo
     } catch { /* malformed individual building is omitted */ }
   }
   const roofMerged = roofs.length ? mergeGeometries(roofs, false)! : geometryFrom([], []); roofs.forEach((geometry) => geometry.dispose()); roofMerged.computeBoundingBox();
-  const walls = geometryFrom(wallPositions, wallColors); const windows = geometryFrom(windowPositions, windowColors); walls.computeBoundingBox(); windows.computeBoundingBox();
-  return { walls, roofs: roofMerged, windows };
+  const foundations = geometryFrom(foundationPositions, foundationColors); const walls = geometryFrom(wallPositions, wallColors); const windows = geometryFrom(windowPositions, windowColors); foundations.computeBoundingBox(); walls.computeBoundingBox(); windows.computeBoundingBox();
+  return { foundations, walls, roofs: roofMerged, windows };
 };
 
 export const buildBuildingGeometry = (tile: MapTile): THREE.BufferGeometry => {

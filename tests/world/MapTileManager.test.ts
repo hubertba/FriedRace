@@ -12,12 +12,12 @@ test("loads a 3x3 neighborhood without duplicates and unloads distant tiles", as
   const manager = new MapTileManager({ manifest, scene, loadTile: async (url) => { const id = descriptors.find((item) => item.url === url)!.id; loads.push(id); return makeTile(id); }, physics: { addBuildingCollider: () => ({}), removeCollider: (handle) => removed.push(handle) } });
   await manager.update({ x: 150, z: 150 });
   expect(manager.loadedTileIds).toHaveLength(9);
-  expect(manager.loadedBuildingLayerNames.sort()).toEqual(["building-roofs", "building-walls", "building-windows"]);
+  expect(manager.loadedBuildingLayerNames.sort()).toEqual(["building-foundations", "building-roofs", "building-walls", "building-windows"]);
   expect(manager.loadedRoadLayerNames.sort()).toEqual(["road-markings", "road-shoulders", "road-surface"]);
   expect(manager.loadedDecorationLayerNames.sort()).toEqual(["decoration-bushes", "decoration-grass", "decoration-trees"]);
-  const unloadingGroup = scene.getObjectByName("map-tile-0-0")!; const buildingMeshes = ["building-walls", "building-roofs", "building-windows"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh); const roadMeshes = ["road-surface", "road-shoulders", "road-markings"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh);
+  const unloadingGroup = scene.getObjectByName("map-tile-0-0")!; const buildingMeshes = ["building-foundations", "building-walls", "building-roofs", "building-windows"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh); const roadMeshes = ["road-surface", "road-shoulders", "road-markings"].map((name) => unloadingGroup.getObjectByName(name) as THREE.Mesh);
   expect(buildingMeshes.every((mesh) => mesh instanceof THREE.Mesh)).toBe(true);
-  expect(buildingMeshes.slice(0, 2).every((mesh) => (mesh.material as THREE.MeshStandardMaterial).vertexColors)).toBe(true);
+  expect(buildingMeshes.every((mesh) => (mesh.material as THREE.MeshStandardMaterial).vertexColors)).toBe(true);
   expect(roadMeshes.every((mesh) => mesh instanceof THREE.Mesh)).toBe(true); const sharedRoadMaterialDispose = vi.spyOn(roadMeshes[0]!.material as THREE.Material, "dispose"); const sharedTree = unloadingGroup.getObjectByName("decoration-trees") as THREE.InstancedMesh; expect(sharedTree).toBeInstanceOf(THREE.InstancedMesh); const sharedTreeGeometryDispose = vi.spyOn(sharedTree.geometry, "dispose");
   const disposals = [...buildingMeshes, ...roadMeshes].map((mesh) => vi.spyOn(mesh.geometry, "dispose"));
   await manager.update({ x: 150, z: 150 });
