@@ -9,6 +9,7 @@ import { canEnterRally, startRally, updateRally, type RallyRun } from "../domain
 import { startWaypointChallenge, updateWaypointChallenge, type WaypointChallenge } from "../domain/waypointChallenge";
 import { KeyboardInput } from "../input/KeyboardInput";
 import { consumeFixedSteps, FIXED_STEP, VehicleRuntime } from "../simulation/VehicleRuntime";
+import { configureRenderer } from "../visuals/Environment";
 import { GarageMenu } from "../ui/GarageMenu";
 import { Hud } from "../ui/Hud";
 import { MapOverlay } from "../ui/MapOverlay";
@@ -60,7 +61,7 @@ export class GameApp {
     const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 2500);
     this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
     this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-    this.renderer.shadowMap.enabled = true;
+    configureRenderer(this.renderer);
 
     const body = physics.createRigidBody(
       RAPIER.RigidBodyDesc.dynamic()
