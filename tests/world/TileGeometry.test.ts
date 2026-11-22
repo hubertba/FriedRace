@@ -37,6 +37,14 @@ test("builds coloured walls, pitched roofs, and bounded residential windows", ()
   Object.values(geometries).forEach((geometry) => geometry.dispose());
 });
 
+test("offsets windows outside clockwise OSM footprints", () => {
+  const clockwise = building({ id: "clockwise", outer: [{x:10,z:10},{x:10,z:18},{x:22,z:18},{x:22,z:10},{x:10,z:10}] });
+  const geometries = buildBuildingGeometries(tile([clockwise]));
+  geometries.windows.computeBoundingBox();
+  expect(geometries.windows.boundingBox!.min.x).toBeLessThan(10);
+  Object.values(geometries).forEach((geometry) => geometry.dispose());
+});
+
 test("omits windows for garages", () => {
   const geometries = buildBuildingGeometries(tile([building({ id: "garage", buildingType: "garage", height: 3.5, levels: 1, roofShape: "flat", roofHeight: 0.35 })]));
   expect(geometries.walls.getAttribute("position").count).toBeGreaterThan(0);

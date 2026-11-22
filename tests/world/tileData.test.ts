@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import fixture from "../fixtures/osm-buildings.json";
-import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, resolveBuildingAppearance, validateMapManifest, validateMapTile } from "../../src/world/tileData";
+import { assignFeaturesToTiles, buildManifest, convertOsmBatch, nearestRoadPoint, resolveBuildingAppearance, validateMapManifest, validateMapTile, type ImportedBuilding } from "../../src/world/tileData";
 
 const projection = { originLat: 47.2, originLon: 16.1, compression: 0.035 };
 
@@ -93,7 +93,12 @@ test("checked-in Unterwart assets contain real streets, buildings, and the addre
   const tiles = await Promise.all(manifest.tiles.map(async (descriptor: { url: string }) => JSON.parse(await readFile(`public${descriptor.url}`, "utf8"))));
   const roads = tiles.flatMap((tile: { roads: Parameters<typeof nearestRoadPoint>[0] }) => tile.roads);
   expect(nearestRoadPoint(roads, manifest.spawn).distance).toBeLessThan(0.1);
-  expect(tiles.reduce((sum: number, tile: { buildings: unknown[] }) => sum + tile.buildings.length, 0)).toBeGreaterThan(100);
+  const buildings = tiles.flatMap((tile: { buildings: ImportedBuilding[] }) => tile.buildings);
+  expect(buildings.length).toBeGreaterThan(100);
+  expect(buildings.every((building) => /^#[0-9a-f]{6}$/i.test(building.facadeColor) && /^#[0-9a-f]{6}$/i.test(building.roofColor) && ["flat", "gabled", "hipped"].includes(building.roofShape))).toBe(true);
+  expect(new Set(buildings.map((building) => building.facadeColor)).size).toBeGreaterThan(3);
+  expect(buildings.some((building) => building.roofShape === "gabled" || building.roofShape === "hipped")).toBe(true);
+  expect(buildings.some((building) => building.levels >= 1)).toBe(true);
   expect(tiles.flatMap((tile: { roads: Array<{ highway: string }> }) => tile.roads).some((road: { highway: string }) => road.highway === "residential" || road.highway === "service")).toBe(true);
 });
 

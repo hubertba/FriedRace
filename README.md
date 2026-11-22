@@ -32,7 +32,7 @@ Der Spielstand beginnt mit 30.000 Euro und einem stilisierten Mitsubishi Eclipse
 npm run map:import
 ```
 
-Der Import lädt Unterwarts Straßen und Gebäude nur während der Entwicklung. Er versucht Overpass und verwendet bei Ausfällen kleine Abfragen an die OSM-Map-API. Anschließend erzeugt er atomar `public/map/manifest.json` und lokale Kartenteile. Das laufende Spiel lädt eine 3×3-Nachbarschaft dieser lokalen Dateien und kontaktiert weder OpenStreetMap noch Overpass. Gebäude werden als vereinfachte 3D-Körper mit näherungsweisen Kollisionen dargestellt. Ein fehlgeschlagener Import lässt die letzte gültige Karte unverändert.
+Der Import lädt Unterwarts Straßen und Gebäude nur während der Entwicklung. Er versucht Overpass und verwendet bei Ausfällen kleine Abfragen an die OSM-Map-API. Anschließend erzeugt er atomar `public/map/manifest.json` und lokale Kartenteile. Das laufende Spiel lädt eine 3×3-Nachbarschaft dieser lokalen Dateien und kontaktiert weder OpenStreetMap noch Overpass. Gebäude verwenden vorhandene OSM-Angaben für Höhe, Material, Farbe und Dachform; fehlende Angaben erhalten reproduzierbare Streets-GL-inspirierte Fassaden, Flach-, Sattel- oder Walmdächer und Fensterreihen. Die Kollision bleibt bewusst eine performante Näherung. Ein fehlgeschlagener Import lässt die letzte gültige Karte unverändert.
 
 Kartendaten: © OpenStreetMap-Mitwirkende, bereitgestellt unter ODbL. Siehe <https://www.openstreetmap.org/copyright>.
 

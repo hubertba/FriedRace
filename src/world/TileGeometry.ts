@@ -74,9 +74,10 @@ export const buildBuildingGeometries = (tile: MapTile): { walls: THREE.BufferGeo
         quad(wallPositions, wallColors, {x:start.x,y:bottom,z:start.z}, {x:end.x,y:bottom,z:end.z}, {x:end.x,y:eave,z:end.z}, {x:start.x,y:eave,z:start.z}, facadeColor);
       }
       roofs.push(roofGeometry(building, wallPositions, wallColors));
+      const signedArea = building.outer.slice(0, -1).reduce((sum, point, index) => { const next = building.outer[index + 1]!; return sum + point.x * next.z - next.x * point.z; }, 0); const outward = signedArea >= 0 ? 1 : -1;
       if (!noWindows.has(building.buildingType)) for (let index = 1; index < building.outer.length; index += 1) {
         const start = building.outer[index - 1]!; const end = building.outer[index]!; const dx = end.x - start.x; const dz = end.z - start.z; const length = Math.hypot(dx, dz); if (length < 3.5) continue;
-        const columns = Math.max(1, Math.min(6, Math.floor(length / 3))); const nx = dz / length * 0.035; const nz = -dx / length * 0.035; const wallHeight = eave - building.minHeight;
+        const columns = Math.max(1, Math.min(6, Math.floor(length / 3))); const nx = dz / length * 0.035 * outward; const nz = -dx / length * 0.035 * outward; const wallHeight = eave - building.minHeight;
         for (let floor = 0; floor < Math.max(1, Math.min(8, Math.round(building.levels))); floor += 1) for (let column = 0; column < columns; column += 1) {
           const centerT = (column + 1) / (columns + 1); const cx = start.x + dx * centerT + nx; const cz = start.z + dz * centerT + nz; const halfWidth = Math.min(0.7, length / (columns + 1) * 0.28); const halfHeight = Math.min(0.75, wallHeight / Math.max(1, building.levels) * 0.28); const cy = building.minHeight + wallHeight * (floor + 0.5) / Math.max(1, building.levels);
           const tx = dx / length * halfWidth; const tz = dz / length * halfWidth;
