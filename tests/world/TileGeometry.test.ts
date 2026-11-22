@@ -37,6 +37,40 @@ test("builds coloured walls, pitched roofs, and bounded residential windows", ()
   Object.values(geometries).forEach((geometry) => geometry.dispose());
 });
 
+test("orients walls, windows, and pitched roofs outward for both footprint windings", () => {
+  for (const outer of [
+    [{x:10,z:10},{x:22,z:10},{x:22,z:18},{x:10,z:18},{x:10,z:10}],
+    [{x:10,z:10},{x:10,z:18},{x:22,z:18},{x:22,z:10},{x:10,z:10}],
+  ]) {
+    const geometries = buildBuildingGeometries(tile([building({ id: "winding", outer })]));
+    const center = { x: 16, z: 14 };
+    for (const geometry of [geometries.walls, geometries.windows]) {
+      const position = geometry.getAttribute("position"); const normal = geometry.getAttribute("normal");
+      const triangleCenter = { x: (position.getX(0)+position.getX(1)+position.getX(2))/3, z: (position.getZ(0)+position.getZ(1)+position.getZ(2))/3 };
+      expect(normal.getX(0)*(triangleCenter.x-center.x)+normal.getZ(0)*(triangleCenter.z-center.z)).toBeGreaterThan(0);
+    }
+    const roofNormals = geometries.roofs.getAttribute("normal");
+    expect(Array.from({length:roofNormals.count},(_,index)=>roofNormals.getY(index)).every((value)=>value>0)).toBe(true);
+    Object.values(geometries).forEach((geometry) => geometry.dispose());
+  }
+});
+
+test("falls back to a flat roof for concave pitched footprints", () => {
+  const concave = building({ id: "concave", roofShape: "gabled", outer: [{x:10,z:10},{x:24,z:10},{x:24,z:18},{x:18,z:18},{x:18,z:14},{x:10,z:14},{x:10,z:10}] });
+  const geometries = buildBuildingGeometries(tile([concave])); geometries.roofs.computeBoundingBox();
+  expect(geometries.roofs.boundingBox!.min.y).toBeCloseTo(concave.height);
+  expect(geometries.roofs.boundingBox!.max.y).toBeCloseTo(concave.height);
+  Object.values(geometries).forEach((geometry) => geometry.dispose());
+});
+
+test("keeps fractional-level windows below the eave", () => {
+  for (const levels of [0.5, 1.5, 99]) {
+    const item = building({ id: `levels-${levels}`, levels }); const geometries = buildBuildingGeometries(tile([item])); geometries.windows.computeBoundingBox();
+    expect(geometries.windows.boundingBox!.max.y).toBeLessThanOrEqual(item.height-item.roofHeight);
+    Object.values(geometries).forEach((geometry) => geometry.dispose());
+  }
+});
+
 test("offsets windows outside clockwise OSM footprints", () => {
   const clockwise = building({ id: "clockwise", outer: [{x:10,z:10},{x:10,z:18},{x:22,z:18},{x:22,z:10},{x:10,z:10}] });
   const geometries = buildBuildingGeometries(tile([clockwise]));

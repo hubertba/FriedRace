@@ -18,6 +18,16 @@ const triangle = (positions: number[], colors: number[], a: { x: number; y: numb
 const quad = (positions: number[], colors: number[], a: { x: number; y: number; z: number }, b: { x: number; y: number; z: number }, c: { x: number; y: number; z: number }, d: { x: number; y: number; z: number }, color: THREE.Color): void => {
   triangle(positions, colors, a, b, c, color); triangle(positions, colors, a, c, d, color);
 };
+const ringArea = (ring: Array<{ x: number; z: number }>): number => ring.slice(0, -1).reduce((sum, point, index) => { const next = ring[index + 1]!; return sum + point.x * next.z - next.x * point.z; }, 0) / 2;
+const normalizeRing = <T extends { x: number; z: number }>(ring: T[], clockwise: boolean): T[] => {
+  const points = ring.slice(0, -1); const shouldReverse = clockwise ? ringArea(ring) > 0 : ringArea(ring) < 0; const ordered = shouldReverse ? [...points].reverse() : [...points]; return [...ordered, ordered[0]!];
+};
+const isConvex = (ring: Array<{ x: number; z: number }>): boolean => {
+  const points = ring.slice(0, -1); let sign = 0;
+  for (let index = 0; index < points.length; index += 1) { const a = points[index]!; const b = points[(index + 1) % points.length]!; const c = points[(index + 2) % points.length]!; const cross = (b.x-a.x)*(c.z-b.z)-(b.z-a.z)*(c.x-b.x); if (Math.abs(cross) < 1e-6) continue; const nextSign = Math.sign(cross); if (sign && nextSign !== sign) return false; sign = nextSign; }
+  return sign !== 0;
+};
+const supportsPitchedRoof = (building: ImportedBuilding): boolean => building.roofShape !== "flat" && building.inners.length === 0 && building.outer.length - 1 === 4 && isConvex(normalizeRing(building.outer, true));
 const addColor = (geometry: THREE.BufferGeometry, value: string): THREE.BufferGeometry => {
   const result = geometry.index ? geometry.toNonIndexed() : geometry; if (result !== geometry) geometry.dispose();
   const color = new THREE.Color(value); const count = result.getAttribute("position").count; const colors: number[] = [];
@@ -38,11 +48,11 @@ export const buildRoadGeometry = (tile: MapTile): THREE.BufferGeometry => {
 };
 
 const roofGeometry = (building: ImportedBuilding, wallPositions: number[], wallColors: number[]): THREE.BufferGeometry => {
-  const outer = building.outer.slice(0, -1); const roofColor = new THREE.Color(building.roofColor); const facadeColor = new THREE.Color(building.facadeColor);
-  const pitched = building.roofShape !== "flat" && building.inners.length === 0 && outer.length >= 4;
+  const normalizedOuter = normalizeRing(building.outer, true); const outer = normalizedOuter.slice(0, -1); const normalizedInners = building.inners.map((ring) => normalizeRing(ring, false)); const roofColor = new THREE.Color(building.roofColor); const facadeColor = new THREE.Color(building.facadeColor);
+  const pitched = supportsPitchedRoof(building);
   if (!pitched) {
     const shape = new THREE.Shape(outer.map((point) => new THREE.Vector2(point.x, -point.z)));
-    for (const inner of building.inners) shape.holes.push(new THREE.Path(inner.slice(0, -1).map((point) => new THREE.Vector2(point.x, -point.z))));
+    for (const inner of normalizedInners) shape.holes.push(new THREE.Path(inner.slice(0, -1).map((point) => new THREE.Vector2(point.x, -point.z))));
     const geometry = new THREE.ShapeGeometry(shape); geometry.rotateX(-Math.PI / 2); geometry.translate(0, building.height, 0); return addColor(geometry, building.roofColor);
   }
   let longest = { dx: 1, dz: 0, length: 0 };
@@ -68,18 +78,17 @@ export const buildBuildingGeometries = (tile: MapTile): { walls: THREE.BufferGeo
   const noWindows = new Set(["garage", "garages", "shed", "carport", "barn", "industrial", "warehouse", "hangar", "farm_auxiliary"]);
   for (const building of tile.buildings) {
     try {
-      const facadeColor = new THREE.Color(building.facadeColor); const windowColor = new THREE.Color("#27343c"); const eave = building.roofShape === "flat" ? building.height : Math.max(building.minHeight + 0.5, building.height - building.roofHeight);
-      for (const ring of [building.outer, ...building.inners]) for (let index = 1; index < ring.length; index += 1) {
+      const facadeColor = new THREE.Color(building.facadeColor); const windowColor = new THREE.Color("#27343c"); const eave = supportsPitchedRoof(building) ? Math.max(building.minHeight + 0.5, building.height - building.roofHeight) : building.height; const outer = normalizeRing(building.outer, true); const inners = building.inners.map((ring) => normalizeRing(ring, false));
+      for (const ring of [outer, ...inners]) for (let index = 1; index < ring.length; index += 1) {
         const start = ring[index - 1]!; const end = ring[index]!; const bottom = building.minHeight;
         quad(wallPositions, wallColors, {x:start.x,y:bottom,z:start.z}, {x:end.x,y:bottom,z:end.z}, {x:end.x,y:eave,z:end.z}, {x:start.x,y:eave,z:start.z}, facadeColor);
       }
       roofs.push(roofGeometry(building, wallPositions, wallColors));
-      const signedArea = building.outer.slice(0, -1).reduce((sum, point, index) => { const next = building.outer[index + 1]!; return sum + point.x * next.z - next.x * point.z; }, 0); const outward = signedArea >= 0 ? 1 : -1;
-      if (!noWindows.has(building.buildingType)) for (let index = 1; index < building.outer.length; index += 1) {
-        const start = building.outer[index - 1]!; const end = building.outer[index]!; const dx = end.x - start.x; const dz = end.z - start.z; const length = Math.hypot(dx, dz); if (length < 3.5) continue;
-        const columns = Math.max(1, Math.min(6, Math.floor(length / 3))); const nx = dz / length * 0.035 * outward; const nz = -dx / length * 0.035 * outward; const wallHeight = eave - building.minHeight;
-        for (let floor = 0; floor < Math.max(1, Math.min(8, Math.round(building.levels))); floor += 1) for (let column = 0; column < columns; column += 1) {
-          const centerT = (column + 1) / (columns + 1); const cx = start.x + dx * centerT + nx; const cz = start.z + dz * centerT + nz; const halfWidth = Math.min(0.7, length / (columns + 1) * 0.28); const halfHeight = Math.min(0.75, wallHeight / Math.max(1, building.levels) * 0.28); const cy = building.minHeight + wallHeight * (floor + 0.5) / Math.max(1, building.levels);
+      if (!noWindows.has(building.buildingType)) for (let index = 1; index < outer.length; index += 1) {
+        const start = outer[index - 1]!; const end = outer[index]!; const dx = end.x - start.x; const dz = end.z - start.z; const length = Math.hypot(dx, dz); if (length < 3.5) continue;
+        const columns = Math.max(1, Math.min(6, Math.floor(length / 3))); const nx = -dz / length * 0.035; const nz = dx / length * 0.035; const wallHeight = eave - building.minHeight; const rows = Math.max(1, Math.min(8, Math.round(building.levels)));
+        for (let floor = 0; floor < rows; floor += 1) for (let column = 0; column < columns; column += 1) {
+          const centerT = (column + 1) / (columns + 1); const cx = start.x + dx * centerT + nx; const cz = start.z + dz * centerT + nz; const halfWidth = Math.min(0.7, length / (columns + 1) * 0.28); const halfHeight = Math.min(0.75, wallHeight / rows * 0.28); const cy = building.minHeight + wallHeight * (floor + 0.5) / rows;
           const tx = dx / length * halfWidth; const tz = dz / length * halfWidth;
           quad(windowPositions, windowColors, {x:cx-tx,y:cy-halfHeight,z:cz-tz}, {x:cx+tx,y:cy-halfHeight,z:cz+tz}, {x:cx+tx,y:cy+halfHeight,z:cz+tz}, {x:cx-tx,y:cy+halfHeight,z:cz-tz}, windowColor);
         }

@@ -93,9 +93,9 @@ export const resolveBuildingAppearance = (tags: Record<string, string> | undefin
 const fallbackHeight = (tags: Record<string, string> | undefined, id: number): number => utilityTypes.has(tags?.building ?? "") ? 3 + stableIndex(id, 2) * 1.5 : 6 + Math.abs(id % 4) * 3;
 const buildingDetails = (tags: Record<string, string> | undefined, id: number): BuildingAppearance & { height: number; minHeight: number; levels: number } => {
   const appearance = resolveBuildingAppearance(tags, id); const direct = Number.parseFloat(tags?.height ?? ""); const taggedLevels = Number.parseFloat(tags?.["building:levels"] ?? ""); const taggedMinHeight = Number.parseFloat(tags?.min_height ?? "");
-  const minHeight = Number.isFinite(taggedMinHeight) && taggedMinHeight >= 0 ? Math.min(taggedMinHeight, 40) : 0;
-  const height = Number.isFinite(direct) && direct > minHeight ? Math.min(direct, 80) : Number.isFinite(taggedLevels) && taggedLevels > 0 ? Math.min(minHeight + taggedLevels * 3, 80) : fallbackHeight(tags, id);
-  const roofHeight = Math.min(appearance.roofHeight, Math.max(0, height - minHeight - 0.5));
+  const minHeight = Number.isFinite(taggedMinHeight) && taggedMinHeight >= 0 ? Math.min(taggedMinHeight, 40) : 0; const minimumSpan = Math.max(3, appearance.roofHeight + 2);
+  const height = Number.isFinite(direct) && direct >= minHeight + minimumSpan ? Math.min(direct, 80) : Number.isFinite(taggedLevels) && taggedLevels > 0 ? Math.min(minHeight + Math.max(minimumSpan, taggedLevels * 3), 80) : Math.min(minHeight + Math.max(minimumSpan, fallbackHeight(tags, id)), 80);
+  const roofHeight = Math.min(appearance.roofHeight, Math.max(0, height - minHeight - 2));
   const levels = Number.isFinite(taggedLevels) && taggedLevels > 0 ? taggedLevels : Math.max(1, Math.round((height - minHeight - roofHeight) / 3));
   return { ...appearance, roofHeight, height, minHeight, levels };
 };

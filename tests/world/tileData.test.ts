@@ -32,6 +32,18 @@ test("resolves stable type-specific fallback appearances", () => {
   expect(garage.roofShape).toBe("flat");
 });
 
+test("keeps elevated buildings above their minimum height", () => {
+  const data: any = { elements: [
+    {type:"node",id:1,lat:47.2,lon:16.1},{type:"node",id:2,lat:47.2,lon:16.101},{type:"node",id:3,lat:47.201,lon:16.101},{type:"node",id:4,lat:47.201,lon:16.1},
+    {type:"way",id:10,nodes:[1,2,3,4,1],tags:{building:"house",min_height:"10"}},
+    {type:"way",id:11,nodes:[1,2,3,4,1],tags:{building:"house",min_height:"10",height:"10.2","roof:shape":"gabled","roof:height":"2"}},
+  ] };
+  for (const item of convertOsmBatch(data, projection).buildings) {
+    expect(item.height).toBeGreaterThanOrEqual(item.minHeight + 3);
+    expect(item.roofHeight).toBeLessThanOrEqual(item.height - item.minHeight - 2);
+  }
+});
+
 test("joins split relation ways and preserves multiple outer parts", () => {
   const data: any = { elements: [
     { type: "node", id: 1, lat: 47.2, lon: 16.1 }, { type: "node", id: 2, lat: 47.2, lon: 16.11 }, { type: "node", id: 3, lat: 47.21, lon: 16.11 }, { type: "node", id: 4, lat: 47.21, lon: 16.1 },
