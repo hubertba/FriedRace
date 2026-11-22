@@ -22,6 +22,18 @@ test("uses neighboring tiles to exclude protruding buildings and wide roads", ()
   const plan=planTileDecoration(base,100,{exclusionTiles:[neighbor]}); const plants=[...plan.trees,...plan.bushes,...plan.grass]; expect(plants.length).toBeGreaterThan(0); for(const point of plants) { expect(point.x>=57&&point.x<=100&&point.z>=12&&point.z<=88).toBe(false); expect(Math.abs(point.x-50)).toBeGreaterThan(15); }
 });
 
+test("keeps non-overlapping plants stable when a neighbor exclusion is added", () => {
+  const base={...tile(),roads:[],buildings:[]};
+  const neighbor={...tile("1-0"),x:1,bounds:{minX:100,maxX:200,minZ:0,maxZ:100},roads:[{id:"wide",name:"Wide",highway:"primary",width:30,points:[{x:50,z:8},{x:50,z:92}]}],buildings:[{...tile().buildings[0]!,id:"protruding",outer:[{x:60,z:15},{x:140,z:15},{x:140,z:85},{x:60,z:85},{x:60,z:15}]}]};
+  const before=planTileDecoration(base,100); const after=planTileDecoration(base,100,{exclusionTiles:[neighbor]});
+  const key=(point:{x:number;z:number;rotation:number;scale:number})=>`${point.x}:${point.z}:${point.rotation}:${point.scale}`;
+  for (const kind of ["trees","bushes","grass"] as const) {
+    const previous=new Set(before[kind].map(key));
+    for (const plant of after[kind]) expect(previous.has(key(plant))).toBe(true);
+  }
+  expect([...after.trees,...after.bushes,...after.grass].length).toBeLessThan([...before.trees,...before.bushes,...before.grass].length);
+});
+
 test("keeps roadside props out of other intersecting carriageways", () => {
   const parallel={...tile(),buildings:[],roads:[{id:"a",name:"A",highway:"residential",width:8,points:[{x:8,z:40},{x:92,z:40}]},{id:"b",name:"B",highway:"residential",width:8,points:[{x:8,z:46},{x:92,z:46}]}]}; const plan=planTileDecoration(parallel,100);
   expect(plan.delineators.length+plan.streetlights.length).toBeGreaterThan(0);

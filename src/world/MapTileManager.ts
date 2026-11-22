@@ -11,7 +11,7 @@ export interface TilePhysics {
   addBuildingCollider(building: ImportedBuilding): unknown;
   removeCollider(handle: unknown): void;
 }
-interface LoadedTile { tile: MapTile; group: THREE.Group; colliders: unknown[]; }
+interface LoadedTile { tile: MapTile; group: THREE.Group; colliders: unknown[]; decorationPlan?: string; }
 export interface MapTileManagerOptions {
   manifest: MapManifest;
   scene: THREE.Scene;
@@ -120,12 +120,17 @@ export class MapTileManager {
     const exclusionTiles = [...this.loaded.values()].map((entry) => entry.tile);
     const names = new Set<string>();
     for (const loaded of this.loaded.values()) {
-      const existing = loaded.group.getObjectByName("tile-decoration");
-      if (existing) { loaded.group.remove(existing); disposeTileObjects(existing); }
       try {
-        const decoration = this.assetLibrary.createTileDecoration(planTileDecoration(loaded.tile, this.options.manifest.grid.tileSize, { exclusionTiles }));
-        loaded.group.add(decoration);
-        for (const child of decoration.children) if (child.name.startsWith("decoration-")) names.add(child.name);
+        const plan = planTileDecoration(loaded.tile, this.options.manifest.grid.tileSize, { exclusionTiles });
+        const planKey = JSON.stringify(plan);
+        if (planKey !== loaded.decorationPlan) {
+          const existing = loaded.group.getObjectByName("tile-decoration");
+          if (existing) { loaded.group.remove(existing); disposeTileObjects(existing); }
+          loaded.group.add(this.assetLibrary.createTileDecoration(plan));
+          loaded.decorationPlan = planKey;
+        }
+        const decoration = loaded.group.getObjectByName("tile-decoration");
+        if (decoration) for (const child of decoration.children) if (child.name.startsWith("decoration-")) names.add(child.name);
       } catch (error) {
         this.options.onWarning?.(`Map tile ${loaded.tile.id} decoration failed: ${error instanceof Error ? error.message : String(error)}`);
       }
